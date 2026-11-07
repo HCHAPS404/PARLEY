@@ -1,0 +1,23 @@
+import { ensureDb } from "@/lib/db";
+import { env } from "@/lib/env";
+
+/** Render health check — also reports which dependencies are wired. */
+export async function GET() {
+  let db: "postgres" | "pglite" | "down" = env.databaseUrl ? "postgres" : "pglite";
+  try {
+    await ensureDb();
+  } catch {
+    db = "down";
+  }
+  return Response.json({
+    ok: true,
+    service: "parley",
+    ts: new Date().toISOString(),
+    db,
+    configured: {
+      paypal: Boolean(env.paypalClientId && env.paypalClientSecret),
+      llm: Boolean(env.googleApiKey || env.llamaApiKey),
+      channel3: Boolean(env.channel3ApiKey),
+    },
+  });
+}

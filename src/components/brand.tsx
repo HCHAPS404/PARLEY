@@ -1,0 +1,21 @@
+/** Parley mark — two speech wedges meeting mid-table (a parley). */
+export function Logo({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      fill="none"
+      className={className}
+      aria-label="Parley"
+    >
+      <path
+        d="M4 6h12a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-5l-5 4v-4H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"
+        fill="currentColor"
+      />
+      <path
+        d="M28 12h-8a3 3 0 0 0-3 3v3a3 3 0 0 0 3 3h3l4 3v-3h1a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2Z"
+        fill="currentColor"
+        opacity="0.45"
+      />
+    </svg>
+  );
+}
