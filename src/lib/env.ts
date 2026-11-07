@@ -9,10 +9,19 @@ export const env = {
   paypalEnv: (process.env.PAYPAL_ENV ?? "sandbox") as "sandbox" | "live",
 
   googleApiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? "",
-  llamaApiKey: process.env.LLAMA_API_KEY ?? "",
-  llamaBaseUrl: process.env.LLAMA_BASE_URL ?? "https://api.llama.com/compat/v1",
-  llamaModel: process.env.LLAMA_MODEL ?? "Llama-4-Maverick-17B-128E-Instruct-FP8",
-  llmProvider: (process.env.LLM_PROVIDER ?? "google") as "google" | "llama",
+  metaApiKey: process.env.META_API_KEY ?? "",
+  metaBaseUrl: process.env.META_BASE_URL ?? "https://api.meta.ai/v1",
+  metaModel: process.env.META_MODEL ?? "muse-spark-1.3",
+
+  modalApiKey: process.env.MODAL_API_KEY ?? "",
+  modalBaseUrl:
+    process.env.MODAL_BASE_URL ?? "https://inference.us-west.modal.direct/v1",
+  modalModel: process.env.MODAL_MODEL ?? "zai-org/GLM-5.3-Flash",
+
+  llmProvider: (process.env.LLM_PROVIDER ?? "google") as
+    | "google"
+    | "meta"
+    | "modal",
 
   channel3ApiKey: process.env.CHANNEL3_API_KEY ?? "",
 

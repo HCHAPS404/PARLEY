@@ -6,17 +6,24 @@ import { agentTools } from "@/lib/agent/tools";
 import { audit } from "@/lib/audit";
 import { env } from "@/lib/env";
 
-export const runtime = "nodejs";
 export const maxDuration = 120;
 
 function getModel() {
-  if (env.llmProvider === "llama" && env.llamaApiKey) {
-    const llama = createOpenAICompatible({
-      name: "llama",
-      baseURL: env.llamaBaseUrl,
-      apiKey: env.llamaApiKey,
+  if (env.llmProvider === "meta" && env.metaApiKey) {
+    const meta = createOpenAICompatible({
+      name: "meta",
+      baseURL: env.metaBaseUrl,
+      apiKey: env.metaApiKey,
     });
-    return llama(env.llamaModel);
+    return meta(env.metaModel);
+  }
+  if (env.llmProvider === "modal" && env.modalApiKey) {
+    const modal = createOpenAICompatible({
+      name: "modal",
+      baseURL: env.modalBaseUrl,
+      apiKey: env.modalApiKey,
+    });
+    return modal(env.modalModel);
   }
   return google("gemini-2.5-flash");
 }
@@ -30,7 +37,7 @@ export async function POST(req: Request) {
     messages: await convertToModelMessages(messages),
     tools: agentTools(),
     stopWhen: stepCountIs(14),
-    maxOutputTokens: 2048,
+    maxOutputTokens: 4096,
     onFinish: async ({ usage }) => {
       await audit({
         actor: "agent",

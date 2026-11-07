@@ -16,7 +16,7 @@ export async function GET() {
     db,
     configured: {
       paypal: Boolean(env.paypalClientId && env.paypalClientSecret),
-      llm: Boolean(env.googleApiKey || env.llamaApiKey),
+      llm: Boolean(env.googleApiKey || env.metaApiKey || env.modalApiKey),
       channel3: Boolean(env.channel3ApiKey),
     },
   });
