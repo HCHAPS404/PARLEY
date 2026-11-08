@@ -117,6 +117,9 @@ export function createEscrowOrder(input: EscrowOrderInput) {
               cancel_url: input.cancelUrl,
               user_action: "PAY_NOW",
               shipping_preference: "NO_SHIPPING",
+              // Send buyers to the PayPal login tab — escrow approvals should
+              // be authenticated account actions, not guest card entries.
+              landing_page: "LOGIN",
             },
           },
         },
