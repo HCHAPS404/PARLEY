@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { Logo } from "./brand";
+import { Markdown } from "./markdown";
 import { usePrefs } from "./preferences";
 
 const transport = new DefaultChatTransport({ api: "/api/chat" });
@@ -252,17 +253,22 @@ function MessageRow({ role, parts }: { role: string; parts: never[] }) {
       .join("");
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-ink px-4 py-2.5 text-[14px] text-paper">
+        <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-ink px-4 py-2.5 text-[14px] leading-6 text-paper">
           {text}
         </div>
       </div>
     );
   }
   return (
-    <div className="space-y-3">
-      {parts.map((p, i) => (
-        <Part key={i} part={p} />
-      ))}
+    <div className="flex gap-3">
+      <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-accent-mist">
+        <Logo className="h-4.5 w-4.5 text-accent-strong" />
+      </div>
+      <div className="min-w-0 flex-1 space-y-3">
+        {parts.map((p, i) => (
+          <Part key={i} part={p} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -271,8 +277,8 @@ function MessageRow({ role, parts }: { role: string; parts: never[] }) {
 function Part({ part }: { part: any }) {
   if (part.type === "text") {
     return (
-      <div className="max-w-[90%] whitespace-pre-wrap text-[14px] leading-6">
-        {part.text}
+      <div className="w-fit max-w-full rounded-2xl rounded-tl-sm border border-line bg-card px-4 py-3 text-[14px] leading-6 text-ink/90">
+        <Markdown>{part.text}</Markdown>
       </div>
     );
   }
