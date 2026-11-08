@@ -15,9 +15,16 @@ export type PipelineTask = {
 };
 
 export default function PipelineInner({ tasks }: { tasks: PipelineTask[] }) {
+  if (!tasks.length) {
+    return (
+      <div className="grid h-full w-full place-items-center text-[13px] text-ink-soft">
+        No escrow orders yet — they appear here as the agent creates them.
+      </div>
+    );
+  }
   const dates = tasks.flatMap((t) => [Date.parse(t.startDate), Date.parse(t.endDate)]);
-  const min = dates.length ? new Date(Math.min(...dates)) : new Date();
-  const max = dates.length ? new Date(Math.max(...dates)) : new Date(Date.now() + 7 * 86_400_000);
+  const min = new Date(Math.min(...dates));
+  const max = new Date(Math.max(...dates));
 
   return (
     <div className="h-full w-full">

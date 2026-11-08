@@ -138,6 +138,7 @@ create table if not exists negotiations (
   updated_at timestamptz default now()
 );
 alter table orders_local add column if not exists user_id text;
+alter table orders_local add column if not exists authorization_expires_at timestamptz;
 alter table audit_log add column if not exists user_id text;
 insert into policies (id, name, max_per_tx_cents, daily_cap_cents, monthly_cap_cents, autonomous_limit_cents, allowed_vendors, active)
 select 'default', 'Default spend policy', 25000, 75000, 300000, 5000, null, true

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb, ensureDb } from "@/lib/db";
 import { ordersLocal } from "@/lib/db/schema";
 import { audit } from "@/lib/audit";
@@ -14,10 +14,16 @@ export async function GET(req: Request) {
 
   if (orderId) {
     await ensureDb();
+    // Only the order's owner may mark it cancelled — never by id alone.
     await getDb()
       .update(ordersLocal)
       .set({ status: "cancelled", updatedAt: new Date() })
-      .where(eq(ordersLocal.paypalOrderId, orderId));
+      .where(
+        and(
+          eq(ordersLocal.paypalOrderId, orderId),
+          eq(ordersLocal.userId, user.id),
+        ),
+      );
     await audit({
       actor: "user",
       action: "escrow_cancelled",

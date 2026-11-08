@@ -6,7 +6,7 @@ import {
   randomUUID,
 } from "node:crypto";
 import { cookies } from "next/headers";
-import { eq, and, gt, desc, sql } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { getDb, ensureDb } from "./db";
 import { users, sessions, messages } from "./db/schema";
 

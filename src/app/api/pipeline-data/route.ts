@@ -30,9 +30,25 @@ export async function GET() {
     const delivered = o.deliveredAt?.getTime();
     // Expected delivery: created + 7 days unless already delivered.
     const expectedEnd = delivered ?? created + 7 * DAY;
-    const overdue = !delivered && expectedEnd < now;
+    const overdue =
+      !delivered && !["captured", "voided", "cancelled"].includes(o.status) && expectedEnd < now;
     const done =
-      o.status === "captured" ? 100 : o.status === "authorized" ? 55 : o.status === "approved" ? 35 : 15;
+      o.status === "captured"
+        ? 100
+        : o.status === "voided" || o.status === "cancelled"
+          ? 100
+          : o.status === "authorized"
+            ? 55
+            : o.status === "approved"
+              ? 35
+              : 15;
+    const cls = overdue
+      ? "b-overdue"
+      : o.status === "captured"
+        ? "b-done"
+        : o.status === "voided" || o.status === "cancelled"
+          ? "b-voided"
+          : "";
 
     return [
       {
@@ -42,7 +58,7 @@ export async function GET() {
         endDate: new Date(Math.max(expectedEnd, now)).toISOString(),
         percentDone: done,
         status: o.status,
-        cls: overdue ? "b-overdue" : o.status === "captured" ? "b-done" : "",
+        cls,
       },
     ];
   });

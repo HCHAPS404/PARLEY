@@ -6,6 +6,7 @@ import {
   createEscrowOrder,
   getOrder,
   captureAuthorization,
+  voidAuthorization,
 } from "../paypal";
 import { paypalTools } from "../paypal-toolkit";
 import { checkPolicy } from "../policy";
@@ -426,6 +427,83 @@ export function agentTools(ctx: AgentCtx) {
           captureId: capture.id,
           releasedUsd: usd(row.amountCents),
           note: "Escrow released — seller paid on confirmed delivery.",
+        };
+      },
+    }),
+
+    void_escrow_order: tool({
+      description:
+        "Void the escrow hold — goods never arrived or the deal fell through. The authorized funds go back to the buyer untouched.",
+      inputSchema: z.object({
+        paypalOrderId: z.string().describe("The PayPal order id"),
+        reason: z.string().optional().describe("Why the hold is being voided"),
+      }),
+      execute: async ({ paypalOrderId, reason }) => {
+        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        await ensureDb();
+        const db = getDb();
+        const [row] = await db
+          .select()
+          .from(ordersLocal)
+          .where(
+            and(
+              eq(ordersLocal.paypalOrderId, paypalOrderId),
+              eq(ordersLocal.userId, ctx.userId),
+            ),
+          )
+          .limit(1);
+        if (!row) return { error: "Order not found" };
+        if (row.status === "captured")
+          return { error: "Order already captured — funds already released to the seller" };
+        if (row.status === "voided") return { status: "voided", note: "Already voided." };
+
+        let authId = row.authorizationId;
+        if (!authId) {
+          const order = await getOrder(paypalOrderId);
+          authId =
+            order.purchase_units?.[0]?.payments?.authorizations?.[0]?.id ?? null;
+          if (!authId) {
+            // No authorization to void — just close the local order.
+            await db
+              .update(ordersLocal)
+              .set({ status: "voided", updatedAt: new Date() })
+              .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
+            return {
+              status: "voided",
+              note: "No authorization existed — nothing held, order closed locally.",
+            };
+          }
+        }
+        const voided = await voidAuthorization(authId);
+        await db
+          .update(ordersLocal)
+          .set({ status: "voided", updatedAt: new Date() })
+          .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
+        if (row.vendor) {
+          await db
+            .insert(vendorScores)
+            .values({ domain: row.vendor, score: 30, ordersCount: 1, disputesCount: 1 })
+            .onConflictDoUpdate({
+              target: vendorScores.domain,
+              set: {
+                ordersCount: sql`${vendorScores.ordersCount} + 1` as never,
+                disputesCount: sql`${vendorScores.disputesCount} + 1` as never,
+                updatedAt: new Date(),
+              },
+            });
+        }
+        await audit({
+          actor: "system",
+          action: "escrow_voided",
+          userId: ctx.userId,
+          input: { paypalOrderId, authId, reason },
+          output: voided,
+          rationale: reason ?? "Delivery failed or deal abandoned — hold returned to buyer",
+        });
+        return {
+          status: voided.status,
+          releasedUsd: usd(row.amountCents),
+          note: "Escrow voided — authorized funds released back to the buyer.",
         };
       },
     }),

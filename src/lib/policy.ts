@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { getDb, ensureDb } from "./db";
-import { policies, ordersLocal } from "./db/schema";
+import { policies } from "./db/schema";
 import { eq } from "drizzle-orm";
 
 export interface PolicyDecision {

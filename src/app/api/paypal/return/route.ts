@@ -34,12 +34,20 @@ export async function GET(req: Request) {
 
   try {
     const auth = await authorizeOrder(orderId);
-    const authId =
-      auth.purchase_units?.[0]?.payments?.authorizations?.[0]?.id ?? null;
+    const authz = auth.purchase_units?.[0]?.payments?.authorizations?.[0];
+    const authId = authz?.id ?? null;
+    const authExpires = authz?.expiration_time
+      ? new Date(authz.expiration_time)
+      : null;
 
     await getDb()
       .update(ordersLocal)
-      .set({ status: "authorized", authorizationId: authId, updatedAt: new Date() })
+      .set({
+        status: "authorized",
+        authorizationId: authId,
+        authorizationExpiresAt: authExpires,
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(ordersLocal.paypalOrderId, orderId),
@@ -50,7 +58,7 @@ export async function GET(req: Request) {
       actor: "system",
       action: "escrow_authorized",
       userId: user.id,
-      input: { orderId, authId },
+      input: { orderId, authId, authExpires },
       output: { status: auth.status },
       rationale: "Buyer approved — funds held pending delivery confirmation",
     });

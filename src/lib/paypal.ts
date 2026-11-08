@@ -87,7 +87,7 @@ export interface PayPalOrder {
   purchase_units?: {
     reference_id?: string;
     payments?: {
-      authorizations?: { id: string; status: string }[];
+      authorizations?: { id: string; status: string; expiration_time?: string }[];
       captures?: { id: string; status: string }[];
     };
   }[];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import {
@@ -44,8 +45,19 @@ export function ChatArea({
   const { messages, sendMessage, setMessages, status, error } = useChat({
     transport,
   });
+  const router = useRouter();
   const [input, setInput] = useState("");
-  const [banner, setBanner] = useState<string | null>(null);
+  // Banner derives from PayPal redirect params once, at mount (client-only read).
+  const [banner, setBanner] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("authorized"))
+      return `Payment approved — funds held in escrow for order ${p.get("authorized")}. Ask the agent to confirm delivery.`;
+    if (p.get("cancelled")) return "PayPal approval cancelled — nothing was held.";
+    if (p.get("error"))
+      return `Something went wrong during approval (${p.get("error")}).`;
+    return null;
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";
 
@@ -62,21 +74,12 @@ export function ChatArea({
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
+    router.push("/login");
   };
 
+  // Clean the PayPal query params once the banner has been derived from them.
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    if (p.get("authorized")) {
-      setBanner(
-        `Payment approved — funds held in escrow for order ${p.get("authorized")}. Ask the agent to confirm delivery.`,
-      );
-    } else if (p.get("cancelled")) {
-      setBanner("PayPal approval cancelled — nothing was held.");
-    } else if (p.get("error")) {
-      setBanner(`Something went wrong during approval (${p.get("error")}).`);
-    }
-    if (p.toString()) window.history.replaceState({}, "", "/");
+    if (window.location.search) window.history.replaceState({}, "", "/");
   }, []);
 
   useEffect(() => {
@@ -283,6 +286,18 @@ function ToolPart({ part }: { part: any }) {
   if (name === "create_escrow_order" && done) {
     return <EscrowCard output={part.output} />;
   }
+  if (
+    (name === "confirm_delivery_release" || name === "void_escrow_order") &&
+    done
+  ) {
+    return <EscrowResultCard output={part.output} voided={name === "void_escrow_order"} />;
+  }
+  if (name === "get_escrow_status" && done) {
+    return <EscrowStatusCard output={part.output} />;
+  }
+  if (name === "list_orders" && done && part.output?.orders?.length) {
+    return <OrdersTableCard orders={part.output.orders} />;
+  }
   return (
     <div className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-[12px] text-ink-soft">
       <Wrench className="h-3 w-3" />
@@ -422,6 +437,124 @@ function EscrowCard({ output }: { output: any }) {
       )}
       <div className="mt-2 font-mono text-[10px] text-ink-soft/70">
         order {output.orderId}
+      </div>
+    </div>
+  );
+}
+
+const STATUS_TONE: Record<string, string> = {
+  captured: "bg-ok-soft text-ok",
+  authorized: "bg-accent-soft text-accent-strong",
+  approved: "bg-accent-mist text-accent-strong",
+  created: "bg-warn-soft text-warn",
+  voided: "bg-paper text-ink-soft",
+  cancelled: "bg-paper text-ink-soft",
+  failed: "bg-danger-soft text-danger",
+};
+
+function StatusPill({ status }: { status?: string }) {
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+        STATUS_TONE[status ?? ""] ?? "bg-paper text-ink-soft"
+      }`}
+    >
+      {status}
+    </span>
+  );
+}
+
+/* Result of confirm_delivery_release / void_escrow_order — money actually moved. */
+function EscrowResultCard({
+  output,
+  voided,
+}: {
+  output: any;
+  voided: boolean;
+}) {
+  if (output.error) {
+    return (
+      <div className="rounded-xl border border-danger/20 bg-danger-soft px-4 py-3 text-[13px] text-danger">
+        {output.error}
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        voided ? "border-line bg-card" : "border-ok/30 bg-ok-soft"
+      }`}
+    >
+      <div
+        className={`flex items-center gap-2 text-[13px] font-medium ${
+          voided ? "text-ink" : "text-ok"
+        }`}
+      >
+        <ShieldCheck className="h-4 w-4" />
+        {voided
+          ? `Escrow voided — ${money(output.releasedUsd)} returned to buyer`
+          : `Escrow captured — ${money(output.releasedUsd)} released to seller`}
+      </div>
+      {output.note && (
+        <p className="mt-1.5 text-[12px] leading-5 text-ink-soft">{output.note}</p>
+      )}
+      <div className="mt-2 font-mono text-[10px] text-ink-soft/70">
+        {output.captureId ? `capture ${output.captureId}` : `status ${output.status}`}
+      </div>
+    </div>
+  );
+}
+
+/* Live PayPal state of one order. */
+function EscrowStatusCard({ output }: { output: any }) {
+  if (output.error) {
+    return (
+      <div className="rounded-xl border border-danger/20 bg-danger-soft px-4 py-3 text-[13px] text-danger">
+        {output.error}
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-line bg-card p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[12px] font-medium text-ink-soft">Escrow status</span>
+        <StatusPill status={output.status} />
+      </div>
+      <div className="mt-2 space-y-1 font-mono text-[11px] text-ink-soft">
+        <div>order {output.orderId}</div>
+        {output.authorizationId && <div>auth {output.authorizationId}</div>}
+        <div>captured: {output.captured ? "yes" : "no"}</div>
+      </div>
+    </div>
+  );
+}
+
+/* The user's order history — rows rendered from verified data, not model prose. */
+function OrdersTableCard({ orders }: { orders: any[] }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-line bg-card">
+      <div className="border-b border-line px-4 py-2.5 text-[12px] font-medium text-ink-soft">
+        Your escrow orders
+      </div>
+      <div className="divide-y divide-line">
+        {orders.slice(0, 8).map((o: any) => (
+          <div key={o.id} className="flex items-center gap-3 px-4 py-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-medium">{o.title}</div>
+              <div className="truncate text-[11px] text-ink-soft">
+                {o.vendor}
+                {o.negotiated ? " · negotiated" : ""} ·{" "}
+                <span className="font-mono">{o.id}</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="font-display text-[13px] font-semibold">
+                {money(o.totalUsd, o.currency)}
+              </div>
+              <StatusPill status={o.status} />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

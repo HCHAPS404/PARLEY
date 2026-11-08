@@ -80,7 +80,8 @@ export const ordersLocal = pgTable("orders_local", {
   userId: text("user_id"), // owner — null only for pre-auth rows
   paypalOrderId: text("paypal_order_id").notNull().unique(),
   authorizationId: text("authorization_id"),
-  status: text("status").notNull(), // created|approved|authorized|captured|voided|failed
+  authorizationExpiresAt: timestamp("authorization_expires_at", { withTimezone: true }),
+  status: text("status").notNull(), // created|approved|authorized|captured|voided|cancelled|failed
   title: text("title").notNull(),
   vendor: text("vendor"),
   amountCents: integer("amount_cents").notNull(),
