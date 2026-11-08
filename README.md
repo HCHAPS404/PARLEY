@@ -26,21 +26,32 @@ Built for the **PayPal AI Hackathon** · [Demo](https://parley-wt1k.onrender.com
 
 ## Contents
 
-- [The problem](#the-problem)
-- [How it works](#how-it-works)
-- [Why it's not a chatbot with a checkout button](#why-its-not-a-chatbot-with-a-checkout-button)
-- [Agent tools](#agent-tools)
-- [Architecture](#architecture)
-- [Security model](#security-model)
-- [Database](#database)
-- [Design system](#design-system)
-- [Tech stack](#tech-stack)
-- [Quickstart](#quickstart)
-- [Testing the escrow flow](#testing-the-escrow-flow-sandbox)
-- [Deploy](#deploy)
-- [Business model](#business-model)
-- [Roadmap](#roadmap)
-- [License](#license)
+<table>
+<tr>
+<td align="center" width="25%">🧩<br/><a href="#the-problem"><strong>The problem</strong></a></td>
+<td align="center" width="25%">🔄<br/><a href="#how-it-works"><strong>How it works</strong></a></td>
+<td align="center" width="25%">🚫<br/><a href="#why-its-not-a-chatbot-with-a-checkout-button"><strong>Not a chatbot</strong></a></td>
+<td align="center" width="25%">🤖<br/><a href="#agent-tools"><strong>Agent tools</strong></a></td>
+</tr>
+<tr>
+<td align="center">🏛<br/><a href="#architecture"><strong>Architecture</strong></a></td>
+<td align="center">🛡<br/><a href="#security-model"><strong>Security model</strong></a></td>
+<td align="center">🗄<br/><a href="#database"><strong>Database</strong></a></td>
+<td align="center">🎨<br/><a href="#design-system"><strong>Design system</strong></a></td>
+</tr>
+<tr>
+<td align="center">🧰<br/><a href="#tech-stack"><strong>Tech stack</strong></a></td>
+<td align="center">⚡<br/><a href="#quickstart"><strong>Quickstart</strong></a></td>
+<td align="center">🧪<br/><a href="#testing-the-escrow-flow-sandbox"><strong>Escrow flow</strong></a></td>
+<td align="center">🚢<br/><a href="#deploy"><strong>Deploy</strong></a></td>
+</tr>
+<tr>
+<td align="center">💼<br/><a href="#business-model"><strong>Business model</strong></a></td>
+<td align="center">🗺<br/><a href="#roadmap"><strong>Roadmap</strong></a></td>
+<td align="center">📜<br/><a href="#license"><strong>License</strong></a></td>
+<td align="center">🌐<br/><a href="https://parley-wt1k.onrender.com"><strong>Live demo</strong></a></td>
+</tr>
+</table>
 
 ---
 
