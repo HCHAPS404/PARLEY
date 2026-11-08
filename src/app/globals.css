@@ -44,6 +44,73 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Bryntum Gantt — escrow palette */
+.parley-gantt .b-gantt-task {
+  background: var(--color-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  border-radius: 5px;
+  color: var(--color-accent-strong);
+  box-shadow: none;
+}
+.parley-gantt .b-gantt-task .b-gantt-task-content {
+  font-size: 11px;
+  font-weight: 500;
+}
+.parley-gantt .b-gantt-task.b-done {
+  background: var(--color-ok-soft);
+  border-color: color-mix(in srgb, var(--color-ok) 55%, transparent);
+  color: var(--color-ok);
+}
+.parley-gantt .b-gantt-task.b-overdue {
+  background: var(--color-danger-soft);
+  border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
+  color: var(--color-danger);
+}
+.parley-gantt .b-gantt-task.b-voided {
+  background: var(--color-line);
+  border-color: var(--color-line);
+  color: var(--color-ink-soft);
+  opacity: 0.6;
+}
+.parley-gantt .b-grid-header {
+  font-family: var(--font-space-grotesk), sans-serif;
+}
+
+/* Status pills in the Gantt status column */
+.pipe-status {
+  display: inline-flex;
+  border-radius: 9999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-card);
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-ink-soft);
+}
+.pipe-status-authorized,
+.pipe-status-approved {
+  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+.pipe-status-captured {
+  border-color: color-mix(in srgb, var(--color-ok) 35%, transparent);
+  background: var(--color-ok-soft);
+  color: var(--color-ok);
+}
+.pipe-status-expired,
+.pipe-status-overdue {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.pipe-status-unpaid,
+.pipe-status-created {
+  border-color: color-mix(in srgb, var(--color-warn) 35%, transparent);
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);

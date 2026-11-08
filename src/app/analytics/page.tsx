@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
-import { StudioLoader } from "@/components/studio-loader";
+import { Dashboard } from "@/components/dashboard";
 
 export default function AnalyticsPage() {
   return (
@@ -30,12 +30,11 @@ async function AuthedAnalytics() {
             Procurement analytics
           </h1>
           <p className="text-xs text-ink-soft">
-            Orders · agent activity · vendor scores · watchdog alerts — build
-            your own reports
+            What the agent bought, what it cost, and whether vendors delivered.
           </p>
         </header>
-        <main className="min-h-0 flex-1">
-          <StudioLoader />
+        <main className="min-h-0 flex-1 overflow-hidden">
+          <Dashboard />
         </main>
       </div>
     </AppShell>
