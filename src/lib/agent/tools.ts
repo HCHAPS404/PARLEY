@@ -19,6 +19,7 @@ import {
   negotiations as negotiationsTable,
 } from "../db/schema";
 import { merchantRound } from "./merchant";
+import { rateLimit } from "../rate-limit";
 import { env } from "../env";
 
 // ─── Server-side resolution ─────────────────────────────────────────
@@ -46,6 +47,57 @@ type Negotiation = {
 
 const DEMO_SPEND_ERROR =
   "Demo accounts can search and negotiate, but cannot move funds — escrow tools are disabled.";
+
+// Channel3 searches cost a real API key — demo users get a tight window.
+const SEARCH_LIMIT: Record<AgentCtx["role"], number> = { admin: 300, demo: 20 };
+
+/**
+ * Learned reputation. Score is Bayesian-smoothed: a vendor with one on-time
+ * delivery is trusted more than an unknown vendor (prior 50), but less than
+ * one with ten. Disputes hit hard and linger.
+ */
+async function bumpVendorScore(
+  db: ReturnType<typeof getDb>,
+  vendor: string,
+  outcome: "on_time" | "dispute",
+) {
+  const [v] = await db
+    .select()
+    .from(vendorScores)
+    .where(eq(vendorScores.domain, vendor))
+    .limit(1);
+  const orders = (v?.ordersCount ?? 0) + 1;
+  const onTime = (v?.onTimeCount ?? 0) + (outcome === "on_time" ? 1 : 0);
+  const disputes = (v?.disputesCount ?? 0) + (outcome === "dispute" ? 1 : 0);
+  const score = Math.max(
+    0,
+    Math.min(100, Math.round((100 * (onTime + 1)) / (orders + 2) - 15 * disputes)),
+  );
+  await db
+    .insert(vendorScores)
+    .values({ domain: vendor, score, ordersCount: orders, onTimeCount: onTime, disputesCount: disputes })
+    .onConflictDoUpdate({
+      target: vendorScores.domain,
+      set: { score, ordersCount: orders, onTimeCount: onTime, disputesCount: disputes, updatedAt: new Date() },
+    });
+}
+
+/** Attach learned reputation to product results so the agent can prefer trusted vendors. */
+async function withVendorScores(
+  db: ReturnType<typeof getDb>,
+  products: ProductCard[],
+) {
+  const merchants = [...new Set(products.map((p) => p.merchant).filter(Boolean))] as string[];
+  if (!merchants.length) return products;
+  const scores = await db
+    .select()
+    .from(vendorScores)
+    .where(sql`${vendorScores.domain} = any(${merchants})`);
+  const byDomain = new Map(scores.map((s) => [s.domain, s.score]));
+  return products
+    .map((p) => ({ ...p, vendorScore: p.merchant ? (byDomain.get(p.merchant) ?? null) : null }))
+    .sort((a, b) => (b.vendorScore ?? -1) - (a.vendorScore ?? -1));
+}
 
 async function cachePut(userId: string, p: ProductCard) {
   const db = getDb();
@@ -140,6 +192,17 @@ export function agentTools(ctx: AgentCtx) {
         limit: z.number().int().min(1).max(20).default(8),
       }),
       execute: async ({ query, imageUrl, maxPriceUsd, limit }) => {
+        const rl = rateLimit(`search:${ctx.userId}`, SEARCH_LIMIT[ctx.role], 3600_000);
+        if (!rl.ok) {
+          await audit({
+            actor: "system",
+            action: "rate_limited",
+            userId: ctx.userId,
+            input: { tool: "search_products" },
+            output: { retryAfterSec: rl.retryAfterSec },
+          });
+          return { error: `Search rate limit reached — try again in ${Math.ceil(rl.retryAfterSec / 60)} min.` };
+        }
         const { products, error } = await searchProducts({
           query,
           imageUrl,
@@ -148,6 +211,7 @@ export function agentTools(ctx: AgentCtx) {
         });
         await ensureDb();
         for (const p of products) await cachePut(ctx.userId, p);
+        const enriched = await withVendorScores(getDb(), products);
         await audit({
           actor: "agent",
           action: "search_products",
@@ -155,7 +219,7 @@ export function agentTools(ctx: AgentCtx) {
           input: { query, imageUrl, maxPriceUsd },
           output: { count: products.length, error },
         });
-        return { products, count: products.length, ...(error ? { error } : {}) };
+        return { products: enriched, count: enriched.length, ...(error ? { error } : {}) };
       },
     }),
 
@@ -397,23 +461,7 @@ export function agentTools(ctx: AgentCtx) {
           .update(ordersLocal)
           .set({ status: "captured", deliveredAt: new Date(), updatedAt: new Date() })
           .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
-        if (row.vendor) {
-          await db
-            .insert(vendorScores)
-            .values({
-              domain: row.vendor,
-              score: 70,
-              ordersCount: 1,
-              onTimeCount: 1,
-            })
-            .onConflictDoUpdate({
-              target: vendorScores.domain,
-              set: {
-                ordersCount: sql`${vendorScores.ordersCount} + 1` as never,
-                updatedAt: new Date(),
-              },
-            });
-        }
+        if (row.vendor) await bumpVendorScore(db, row.vendor, "on_time");
         await audit({
           actor: "system",
           action: "escrow_captured",
@@ -479,19 +527,7 @@ export function agentTools(ctx: AgentCtx) {
           .update(ordersLocal)
           .set({ status: "voided", updatedAt: new Date() })
           .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
-        if (row.vendor) {
-          await db
-            .insert(vendorScores)
-            .values({ domain: row.vendor, score: 30, ordersCount: 1, disputesCount: 1 })
-            .onConflictDoUpdate({
-              target: vendorScores.domain,
-              set: {
-                ordersCount: sql`${vendorScores.ordersCount} + 1` as never,
-                disputesCount: sql`${vendorScores.disputesCount} + 1` as never,
-                updatedAt: new Date(),
-              },
-            });
-        }
+        if (row.vendor) await bumpVendorScore(db, row.vendor, "dispute");
         await audit({
           actor: "system",
           action: "escrow_voided",

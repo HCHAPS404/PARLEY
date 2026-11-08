@@ -30,6 +30,7 @@ interface ProductCard {
   merchant?: string;
   buyUrl?: string;
   offersCount: number;
+  vendorScore?: number | null;
 }
 
 const usd = (cents: number | null | undefined, cur = "USD") =>
@@ -349,9 +350,25 @@ function ProductGrid({ products }: { products: ProductCard[] }) {
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 truncate text-[11px] text-ink-soft">
-                {p.merchant}
-                {p.brand ? ` · ${p.brand}` : ""}
+              <div className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-ink-soft">
+                <span className="truncate">
+                  {p.merchant}
+                  {p.brand ? ` · ${p.brand}` : ""}
+                </span>
+                {p.vendorScore != null && (
+                  <span
+                    className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium ${
+                      p.vendorScore >= 70
+                        ? "bg-ok-soft text-ok"
+                        : p.vendorScore >= 45
+                          ? "bg-warn-soft text-warn"
+                          : "bg-danger-soft text-danger"
+                    }`}
+                    title={`Vendor reputation: ${p.vendorScore}/100 (learned from deliveries)`}
+                  >
+                    {p.vendorScore}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -453,6 +470,7 @@ const STATUS_TONE: Record<string, string> = {
   created: "bg-warn-soft text-warn",
   voided: "bg-paper text-ink-soft",
   cancelled: "bg-paper text-ink-soft",
+  expired: "bg-warn-soft text-warn",
   failed: "bg-danger-soft text-danger",
 };
 

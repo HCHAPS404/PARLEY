@@ -45,3 +45,17 @@ services:
         value: https://inference.us-west.modal.direct/v1
       - key: MODAL_MODEL
         value: helmut-chs--ep-paypal-endpoint-server.us-west.modal.direct
+
+  # Escrow watchdog — reconciles PayPal state, flags expiring authorizations.
+  # Billed per second of runtime; a sub-second HTTP call every 15 min is ~free.
+  - type: cron
+    name: parley-escrow-watch
+    runtime: node
+    schedule: "*/15 * * * *"
+    buildCommand: "echo no-build"
+    startCommand: node -e "fetch(process.env.APP_URL+'/api/jobs/escrow-watch',{headers:{authorization:'Bearer '+process.env.CRON_SECRET}}).then(r=>r.json().then(j=>{console.log(r.status,j);process.exit(r.ok?0:1)})).catch(e=>{console.error(e);process.exit(1)})"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        value: https://parley-wt1k.onrender.com
