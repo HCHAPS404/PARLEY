@@ -26,32 +26,12 @@ Built for the **PayPal AI Hackathon** · [Demo](https://parley-wt1k.onrender.com
 
 ## Contents
 
-<table>
-<tr>
-<td align="center" width="25%">🧩<br/><a href="#the-problem"><strong>The problem</strong></a></td>
-<td align="center" width="25%">🔄<br/><a href="#how-it-works"><strong>How it works</strong></a></td>
-<td align="center" width="25%">🚫<br/><a href="#why-its-not-a-chatbot-with-a-checkout-button"><strong>Not a chatbot</strong></a></td>
-<td align="center" width="25%">🤖<br/><a href="#agent-tools"><strong>Agent tools</strong></a></td>
-</tr>
-<tr>
-<td align="center">🏛<br/><a href="#architecture"><strong>Architecture</strong></a></td>
-<td align="center">🛡<br/><a href="#security-model"><strong>Security model</strong></a></td>
-<td align="center">🗄<br/><a href="#database"><strong>Database</strong></a></td>
-<td align="center">🎨<br/><a href="#design-system"><strong>Design system</strong></a></td>
-</tr>
-<tr>
-<td align="center">🧰<br/><a href="#tech-stack"><strong>Tech stack</strong></a></td>
-<td align="center">⚡<br/><a href="#quickstart"><strong>Quickstart</strong></a></td>
-<td align="center">🧪<br/><a href="#testing-the-escrow-flow-sandbox"><strong>Escrow flow</strong></a></td>
-<td align="center">🚢<br/><a href="#deploy"><strong>Deploy</strong></a></td>
-</tr>
-<tr>
-<td align="center">💼<br/><a href="#business-model"><strong>Business model</strong></a></td>
-<td align="center">🗺<br/><a href="#roadmap"><strong>Roadmap</strong></a></td>
-<td align="center">📜<br/><a href="#license"><strong>License</strong></a></td>
-<td align="center">🌐<br/><a href="https://parley-wt1k.onrender.com"><strong>Live demo</strong></a></td>
-</tr>
-</table>
+| | | | |
+|---|---|---|---|
+| [The problem](#the-problem) | [How it works](#how-it-works) | [Not a chatbot](#why-its-not-a-chatbot-with-a-checkout-button) | [Agent tools](#agent-tools) |
+| [Architecture](#architecture) | [Security model](#security-model) | [Database](#database) | [Design system](#design-system) |
+| [Tech stack](#tech-stack) | [Quickstart](#quickstart) | [Escrow flow](#testing-the-escrow-flow-sandbox) | [Deploy](#deploy) |
+| [Business model](#business-model) | [Roadmap](#roadmap) | [License](#license) | [Live demo](https://parley-wt1k.onrender.com) |
 
 ---
 
@@ -117,11 +97,11 @@ stateDiagram-v2
 
 | | |
 |---|---|
-| 🚫 **Prices never come from the model** | `create_escrow_order` resolves amounts server-side from the product cache or an accepted negotiation quote. The LLM selects a product ID — it cannot invent a number that reaches PayPal. |
-| 🧱 **Deterministic policy gates every order** | Per-tx, daily, and monthly caps live in `policies` and are evaluated in code (`src/lib/policy.ts`) — not in the prompt. The agent proposes; it cannot spend. |
-| 🖐 **Human approves every payment** | The PayPal approval link/button is the last mile. The agent never touches credentials. |
-| 🔐 **Capture only after delivery** | `AUTHORIZE` intent, never `CAPTURE`. Releasing funds is a separate, explicit, gated step. |
-| 📜 **Everything is audited** | Actor, action, rationale, token count, and cost — append-only and rendered in the analytics workspace. |
+| **Prices never come from the model** | `create_escrow_order` resolves amounts server-side from the product cache or an accepted negotiation quote. The LLM selects a product ID — it cannot invent a number that reaches PayPal. |
+| **Deterministic policy gates every order** | Per-tx, daily, and monthly caps live in `policies` and are evaluated in code (`src/lib/policy.ts`) — not in the prompt. The agent proposes; it cannot spend. |
+| **Human approves every payment** | The PayPal approval link/button is the last mile. The agent never touches credentials. |
+| **Capture only after delivery** | `AUTHORIZE` intent, never `CAPTURE`. Releasing funds is a separate, explicit, gated step. |
+| **Everything is audited** | Actor, action, rationale, token count, and cost — append-only and rendered in the analytics workspace. |
 
 ## Agent tools
 
@@ -282,11 +262,11 @@ First run bootstraps the local PGlite database automatically — no migrations n
 
 | Variable | Required | Notes |
 |---|---|---|
-| `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` | ✅ | developer.paypal.com → Apps & Credentials → **Sandbox** app |
-| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | ✅ | Same client ID — exposed to the browser for PayPal JS SDK |
-| `PAYPAL_ENV` | ✅ | `sandbox` for the hackathon |
-| `CHANNEL3_API_KEY` | ✅ | Product catalog search |
-| `LLM_PROVIDER` | ✅ | `modal` \| `meta` \| `google` |
+| `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` | required | developer.paypal.com → Apps & Credentials → **Sandbox** app |
+| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | required | Same client ID — exposed to the browser for PayPal JS SDK |
+| `PAYPAL_ENV` | required | `sandbox` for the hackathon |
+| `CHANNEL3_API_KEY` | required | Product catalog search |
+| `LLM_PROVIDER` | required | `modal` \| `meta` \| `google` |
 | `MODAL_API_KEY` / `MODAL_BASE_URL` / `MODAL_MODEL` | one LLM | Modal Shared Endpoint proxy token (`wk-….ws-…`) |
 | `META_API_KEY` / `META_BASE_URL` / `META_MODEL` | one LLM | Meta Model API key (`LLM_…`), model `muse-spark-1.3` |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | one LLM | Gemini fallback |
