@@ -52,13 +52,18 @@ export async function checkPolicy(input: {
     );
   }
 
-  const [spend] = (await db.execute(sql`
+  const spendRes = (await db.execute(sql`
     select
       coalesce(sum(case when created_at >= date_trunc('day', now()) then amount_cents else 0 end), 0) as day_spend,
       coalesce(sum(case when created_at >= date_trunc('month', now()) then amount_cents else 0 end), 0) as month_spend
     from orders_local
     where status in ('authorized', 'captured', 'approved')
-  `)) as unknown as { day_spend: number; month_spend: number }[];
+  `)) as unknown;
+  // drizzle/postgres-js returns RowList (iterable); drizzle/pglite returns { rows }.
+  const rows = Array.isArray(spendRes)
+    ? spendRes
+    : (spendRes as { rows?: unknown[] })?.rows ?? [];
+  const spend = rows[0] as { day_spend: number; month_spend: number } | undefined;
 
   const daySpend = Number(spend?.day_spend ?? 0);
   const monthSpend = Number(spend?.month_spend ?? 0);
