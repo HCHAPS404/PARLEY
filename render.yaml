@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: parley
+    runtime: node
+    plan: free
+    region: ohio
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # Secrets — fill these in the Render dashboard (sync: false keeps them out of git)
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_PAYPAL_CLIENT_ID
+        sync: false
+      - key: META_API_KEY
+        sync: false
+      - key: MODAL_API_KEY
+        sync: false
+      - key: CHANNEL3_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_AG_GRID_LICENSE
+        sync: false
+      - key: NEXT_PUBLIC_BRYNTUM_LICENSE
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      # Non-secret config
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: LLM_PROVIDER
+        value: modal
+      - key: META_BASE_URL
+        value: https://api.meta.ai/v1
+      - key: META_MODEL
+        value: muse-spark-1.3
+      - key: MODAL_BASE_URL
+        value: https://inference.us-west.modal.direct/v1
+      - key: MODAL_MODEL
+        value: helmut-chs--ep-paypal-endpoint-server.us-west.modal.direct

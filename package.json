@@ -16,6 +16,8 @@
     "@channel3/sdk": "^4.8.0",
     "@electric-sql/pglite": "^0.5.15",
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "@neon/config": "^1.13.0",
+    "@neon/env": "^2.1.0",
     "@paypal/agent-toolkit": "^1.11.0",
     "@paypal/react-paypal-js": "^10.6.1",
     "ag-grid-community": "^36.3.0",

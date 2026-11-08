@@ -43,3 +43,4 @@ next-env.d.ts
 # local embedded database (PGlite) and drizzle artifacts
 /.data/
 /drizzle/
+.neon
