@@ -11,23 +11,31 @@ export type Db =
   | PostgresJsDatabase<typeof schema>
   | PgliteDatabase<typeof schema>;
 
-let _db: Db | null = null;
-let _boot: Promise<void> | null = null;
+/**
+ * Next.js compiles this module into multiple bundles (route handlers, RSC)
+ * with separate module state — module-level vars alone would open one PGlite
+ * instance per bundle on the same data dir. globalThis is shared across
+ * bundles in the same process, so the connection lives there.
+ */
+const g = globalThis as unknown as {
+  __parleyDb?: Db;
+  __parleyBoot?: Promise<void>;
+};
 
 /**
  * Neon Postgres when DATABASE_URL is set (production/Render),
  * embedded PGlite otherwise (zero-setup local dev). Same dialect, same schema.
  */
 export function getDb(): Db {
-  if (_db) return _db;
+  if (g.__parleyDb) return g.__parleyDb;
   if (env.databaseUrl) {
-    _db = drizzleNeon(postgres(env.databaseUrl, { prepare: false }), { schema });
+    g.__parleyDb = drizzleNeon(postgres(env.databaseUrl, { prepare: false }), { schema });
   } else {
     // PGlite does not create parent dirs — make them ourselves.
     fs.mkdirSync("./.data", { recursive: true });
-    _db = drizzleLite(new PGlite("./.data/parley"), { schema });
+    g.__parleyDb = drizzleLite(new PGlite("./.data/parley"), { schema });
   }
-  return _db;
+  return g.__parleyDb;
 }
 
 const BOOTSTRAP = `
@@ -138,12 +146,17 @@ where not exists (select 1 from policies where id = 'default');
 
 /** Idempotent schema bootstrap — runs once per process, lazily on first use. */
 export function ensureDb(): Promise<void> {
-  return (_boot ??= (async () => {
-    const db = getDb();
-    for (const stmt of BOOTSTRAP.split(";").map((s) => s.trim()).filter(Boolean)) {
-      await db.execute(sql.raw(stmt));
+  return (g.__parleyBoot ??= (async () => {
+    try {
+      const db = getDb();
+      for (const stmt of BOOTSTRAP.split(";").map((s) => s.trim()).filter(Boolean)) {
+        await db.execute(sql.raw(stmt));
+      }
+      await seedAdmin(db);
+    } catch (e) {
+      g.__parleyBoot = undefined; // allow retry instead of caching a rejection forever
+      throw e;
     }
-    await seedAdmin(db);
   })());
 }
 
