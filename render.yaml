@@ -2,7 +2,7 @@ services:
   - type: web
     name: parley
     runtime: node
-    plan: free
+    plan: starter
     region: ohio
     buildCommand: npm ci && npm run build
     startCommand: npm run start
