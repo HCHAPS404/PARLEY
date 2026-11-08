@@ -1,9 +1,7 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
-import { AppShell } from "@/components/app-shell";
-import { ChatArea } from "@/components/chat";
+import { Landing } from "@/components/landing";
 
 export default function Home() {
   return (
@@ -14,18 +12,13 @@ export default function Home() {
         </div>
       }
     >
-      <AuthedHome />
+      <LandingGate />
     </Suspense>
   );
 }
 
-async function AuthedHome() {
+/** Public landing — the portal lives at /app. Nav adapts if a session exists. */
+async function LandingGate() {
   const user = await getSessionUser();
-  if (!user) redirect("/login");
-
-  return (
-    <AppShell user={{ username: user.username, role: user.role }}>
-      <ChatArea user={{ username: user.username, role: user.role }} />
-    </AppShell>
-  );
+  return <Landing authed={!!user} />;
 }

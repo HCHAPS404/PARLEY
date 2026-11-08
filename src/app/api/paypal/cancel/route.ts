@@ -32,5 +32,5 @@ export async function GET(req: Request) {
       rationale: "Buyer cancelled at PayPal — no funds held",
     });
   }
-  return NextResponse.redirect(new URL("/?cancelled=1", url.origin));
+  return NextResponse.redirect(new URL("/app?cancelled=1", url.origin));
 }

@@ -34,7 +34,7 @@ export default function LoginPage() {
       setError(data.error ?? t("common.error"));
       return;
     }
-    router.push("/");
+    router.push("/app");
     router.refresh();
   };
 

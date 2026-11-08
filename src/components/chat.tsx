@@ -81,7 +81,7 @@ export function ChatArea({
 
   // Clean the PayPal query params once the banner has been derived from them.
   useEffect(() => {
-    if (window.location.search) window.history.replaceState({}, "", "/");
+    if (window.location.search) window.history.replaceState({}, "", "/app");
   }, []);
 
   useEffect(() => {

@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const orderId = url.searchParams.get("token");
   const redirect = (q: string) =>
-    NextResponse.redirect(new URL(`/?${q}`, url.origin));
+    NextResponse.redirect(new URL(`/app?${q}`, url.origin));
 
   const user = await getSessionUser();
   if (!user)

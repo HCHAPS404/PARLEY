@@ -15,7 +15,7 @@ export default function NotFound() {
           That route doesn&apos;t exist in Parley.
         </p>
         <Link
-          href="/"
+          href="/app"
           className="mt-5 inline-block rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white hover:bg-accent-strong"
         >
           Back to the agent

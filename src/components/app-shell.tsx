@@ -19,7 +19,7 @@ import { Logo } from "./brand";
 import { usePrefs } from "./preferences";
 
 const NAV = [
-  { href: "/", key: "nav.agent", icon: MessagesSquare },
+  { href: "/app", key: "nav.agent", icon: MessagesSquare },
   { href: "/analytics", key: "nav.analytics", icon: BarChart3 },
   { href: "/pipeline", key: "nav.pipeline", icon: Workflow },
   { href: "/settings", key: "nav.settings", icon: Settings },
@@ -62,8 +62,7 @@ export function AppShell({
 
         <nav className="flex flex-col gap-1 p-3 text-sm">
           {NAV.map(({ href, key, icon: Icon }) => {
-            const active =
-              href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const active = pathname.startsWith(href);
             return (
               <Link
                 key={href}
