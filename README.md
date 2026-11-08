@@ -1,50 +1,56 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/parley-banner-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/parley-banner-light.svg">
+  <img alt="Parley — procurement that negotiates" src="docs/parley-banner-light.svg" width="100%">
+</picture>
+
 <div align="center">
 
-<img src="docs/parley-mark.svg" alt="Parley" width="80" />
+<img alt="Status" src="https://img.shields.io/badge/status-live%20on%20render-0f766e?style=for-the-badge&labelColor=115e59">
+<img alt="Track" src="https://img.shields.io/badge/track-paypal%20ai%20hackathon-003087?style=for-the-badge&labelColor=012169">
 
-# Parley
+<br/>
 
-**Procurement that negotiates.**
+<img alt="Next.js" src="https://img.shields.io/badge/next.js-16-0f766e?style=flat-square&labelColor=115e59">
+<img alt="TypeScript" src="https://img.shields.io/badge/typescript-strict-0f766e?style=flat-square&labelColor=115e59">
+<img alt="AI SDK" src="https://img.shields.io/badge/vercel%20ai%20sdk-v7-0f766e?style=flat-square&labelColor=115e59">
+<img alt="PayPal" src="https://img.shields.io/badge/paypal-authorize%20%C2%B7%20capture%20%C2%B7%20void-0f766e?style=flat-square&labelColor=115e59">
+<img alt="Database" src="https://img.shields.io/badge/neon-postgres-0f766e?style=flat-square&labelColor=115e59">
 
-An agentic procurement platform for solopreneurs and micro-businesses —
-the procurement department they can't afford. A buyer agent searches real
-products, negotiates price with merchant-side agents (A2A), and pays through
-**agentic escrow on PayPal**: authorized when you approve, captured only
-when delivery is confirmed.
+<br/><br/>
 
-[![Live demo](https://img.shields.io/badge/demo-parley--wt1k.onrender.com-0f766e?style=for-the-badge)](https://parley-wt1k.onrender.com)
-[![PayPal](https://img.shields.io/badge/PayPal-agentic%20escrow-003087?style=for-the-badge&logo=paypal&logoColor=white)](https://developer.paypal.com)
-[![Next.js](https://img.shields.io/badge/Next.js-16-17150f?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![License: MIT](https://img.shields.io/badge/license-MIT-0f766e?style=for-the-badge)](LICENSE)
-
-Built for the **PayPal AI Hackathon** · [Demo](https://parley-wt1k.onrender.com) · [Architecture](#architecture) · [Security model](#security-model) · [Quickstart](#quickstart)
+**[What it is](#what-is-parley) · [How it works](#how-it-works) · [Why different](#why-it-is-different) · [Tools](#agent-tools) · [Architecture](#architecture) · [Security](#security-model) · [Quickstart](#quickstart) · [Deploy](#deploy) · [Roadmap](#roadmap)**
 
 </div>
 
----
+<img src="docs/parley-divider.svg" width="100%" alt="" />
 
-## Contents
+## What is Parley?
 
-| | | | |
-|---|---|---|---|
-| [The problem](#the-problem) | [How it works](#how-it-works) | [Not a chatbot](#why-its-not-a-chatbot-with-a-checkout-button) | [Agent tools](#agent-tools) |
-| [Architecture](#architecture) | [Security model](#security-model) | [Database](#database) | [Design system](#design-system) |
-| [Tech stack](#tech-stack) | [Quickstart](#quickstart) | [Escrow flow](#testing-the-escrow-flow-sandbox) | [Deploy](#deploy) |
-| [Business model](#business-model) | [Roadmap](#roadmap) | [License](#license) | [Live demo](https://parley-wt1k.onrender.com) |
-
----
-
-## The problem
+**Parley** is an agentic procurement platform for solopreneurs and
+micro-businesses — the procurement department they can't afford. A *parley* is
+a conference between two parties; here it's literal — a buyer agent negotiates
+with merchant-side agents, and PayPal settles the deal.
 
 An Etsy seller, a freelancer, a corner café — they all buy supplies, but none
 of them have a procurement team. They overpay because they can't compare and
 negotiate at scale, and they eat the risk when a vendor doesn't deliver: card
 charges are instant, disputes are slow, and "buyer protection" is a claim
-process, not a control.
+process, not a control. Parley inverts that — the agent compares and
+negotiates, PayPal holds the funds in escrow, and money only moves when the
+goods arrive.
 
-**Parley inverts that.** An agent does the comparing and negotiating. PayPal
-does the settling. And the money doesn't move until the goods arrive.
+> **Entry for the PayPal AI Hackathon.**
+
+> [!IMPORTANT]
+> **Verified working today** — live deployment on Render + Neon, real product
+> search via Channel3, agent-to-agent merchant negotiation, deterministic
+> policy gate, and PayPal `AUTHORIZE` order creation against the sandbox API.
+> **Still landing** — the buyer-approval → capture round-trip in the UI,
+> durable session state, and the escrow watchdog cron. Nothing claimed here
+> exceeds what the code does.
+
+<img src="docs/parley-divider.svg" width="100%" alt="" />
 
 ## How it works
 
@@ -93,15 +99,21 @@ stateDiagram-v2
     cancelled --> [*]
 ```
 
-## Why it's not a chatbot with a checkout button
+<img src="docs/parley-divider.svg" width="100%" alt="" />
 
-| | |
+## Why it is different
+
+Most "agentic commerce" demos are a chatbot glued to a checkout button. Parley
+is built so the model can *propose* and only *code* can move money:
+
+| Capability | What it means |
 |---|---|
 | **Prices never come from the model** | `create_escrow_order` resolves amounts server-side from the product cache or an accepted negotiation quote. The LLM selects a product ID — it cannot invent a number that reaches PayPal. |
 | **Deterministic policy gates every order** | Per-tx, daily, and monthly caps live in `policies` and are evaluated in code (`src/lib/policy.ts`) — not in the prompt. The agent proposes; it cannot spend. |
 | **Human approves every payment** | The PayPal approval link/button is the last mile. The agent never touches credentials. |
 | **Capture only after delivery** | `AUTHORIZE` intent, never `CAPTURE`. Releasing funds is a separate, explicit, gated step. |
 | **Everything is audited** | Actor, action, rationale, token count, and cost — append-only and rendered in the analytics workspace. |
+| **A real counterparty** | `merchant_quote` negotiates against a merchant-side agent with its own incentives — up to 4 rounds, and an accepted quote becomes the price. |
 
 ## Agent tools
 
@@ -153,49 +165,49 @@ flowchart LR
     GA --> DB
 ```
 
-### Project map
+### Repository layout
 
 ```
 src/
 ├── app/
-│   ├── page.tsx                  # Buyer agent chat UI
-│   ├── analytics/                # AG Studio workspace — orders, agent activity, vendors, alerts
-│   ├── pipeline/                 # Bryntum Gantt — escrow lifecycle per order
+│   ├── page.tsx                  ← buyer agent chat UI
+│   ├── analytics/                ← AG Studio workspace (orders, activity, vendors, alerts)
+│   ├── pipeline/                 ← Bryntum Gantt — escrow lifecycle per order
 │   └── api/
-│       ├── chat/                 # Agent loop — streamText + tools + provider switch
-│       ├── health/               # Liveness + integration status
-│       ├── paypal/return|cancel/ # PayPal checkout return handlers
-│       ├── analytics-data/       # Feeds AG Studio data sources
-│       └── pipeline-data/        # Feeds the Gantt
+│       ├── chat/                 ← agent loop: streamText + tools + provider switch
+│       ├── health/               ← liveness + integration status
+│       ├── paypal/return|cancel/ ← PayPal checkout return handlers
+│       ├── analytics-data/       ← feeds AG Studio data sources
+│       └── pipeline-data/        ← feeds the Gantt
 ├── lib/
 │   ├── agent/
-│   │   ├── system.ts             # Buyer agent system prompt + guardrails
-│   │   ├── merchant.ts           # Merchant-side agent persona (A2A counterparty)
-│   │   └── tools.ts              # search / negotiate / escrow / release / list
-│   ├── paypal.ts                 # Orders v2 REST client — the only escrow write path
-│   ├── paypal-toolkit.ts         # Agent Toolkit — invoices, disputes, txns, insights
-│   ├── channel3.ts               # Product search, normalized to ProductCard
-│   ├── policy.ts                 # Deterministic spend gate — tx/day/month caps
-│   ├── audit.ts                  # Append-only action + token-cost log
-│   ├── env.ts                    # Centralized server-side env access
+│   │   ├── system.ts             ← buyer agent system prompt + guardrails
+│   │   ├── merchant.ts           ← merchant-side agent persona (A2A counterparty)
+│   │   └── tools.ts              ← search / negotiate / escrow / release / list
+│   ├── paypal.ts                 ← Orders v2 REST client — the only escrow write path
+│   ├── paypal-toolkit.ts         ← Agent Toolkit: invoices, disputes, txns, insights
+│   ├── channel3.ts               ← product search, normalized to ProductCard
+│   ├── policy.ts                 ← deterministic spend gate — tx/day/month caps
+│   ├── audit.ts                  ← append-only action + token-cost log
+│   ├── env.ts                    ← centralized server-side env access
 │   └── db/
-│       ├── schema.ts             # policies · orders_local · audit_log · vendor_scores · alerts
-│       └── index.ts              # Drizzle — Neon (DATABASE_URL) or PGlite fallback
-├── render.yaml                   # Render Blueprint — web service + env contract
-└── neon.ts                       # Neon project wiring
+│       ├── schema.ts             ← policies · orders_local · audit_log · vendor_scores · alerts
+│       └── index.ts              ← Drizzle: Neon (DATABASE_URL) or PGlite fallback
+├── render.yaml                   ← Render Blueprint — web service + env contract
+└── neon.ts                       ← Neon project wiring
 ```
 
 ## Security model
 
 These are invariants, not features — the code enforces them:
 
-> 1. **Money amounts are never model output.** Server-side price resolution only.
-> 2. **`checkPolicy` cannot be bypassed** — it runs before every PayPal call, and tool retries can't route around it.
-> 3. **No `CAPTURE` before delivery confirmation.** Authorization and capture are separate API calls with separate gates.
-> 4. **Idempotent writes** — every mutating PayPal call sends a fresh `PayPal-Request-Id`.
-> 5. **Secrets stay server-side.** Only `NEXT_PUBLIC_*` variables reach the browser; the PayPal secret never does.
-> 6. **Tool results are data.** The system prompt instructs the model to treat tool output as untrusted content, never as instructions.
-> 7. **Audit never lies.** `audit()` wraps every consequential action and fails safe — a logging problem can never block or corrupt a payment path.
+1. **Money amounts are never model output.** Server-side price resolution only.
+2. **`checkPolicy` cannot be bypassed** — it runs before every PayPal call, and tool retries can't route around it.
+3. **No `CAPTURE` before delivery confirmation.** Authorization and capture are separate API calls with separate gates.
+4. **Idempotent writes** — every mutating PayPal call sends a fresh `PayPal-Request-Id`.
+5. **Secrets stay server-side.** Only `NEXT_PUBLIC_*` variables reach the browser; the PayPal secret never does.
+6. **Tool results are data.** The system prompt instructs the model to treat tool output as untrusted content, never as instructions.
+7. **Audit never lies.** `audit()` wraps every consequential action and fails safe — a logging problem can never block or corrupt a payment path.
 
 ## Database
 
@@ -244,6 +256,8 @@ Typography — **Space Grotesk** for display, **Inter** for UI text.
 | Analytics | AG Grid Enterprise + AG Studio report builder (`/analytics`) |
 | Timeline | Bryntum Gantt — escrow lifecycle as a project plan (`/pipeline`) |
 | Hosting | Render Blueprint (`render.yaml`) · health check `/api/health` |
+
+<img src="docs/parley-divider.svg" width="100%" alt="" />
 
 ## Quickstart
 
@@ -332,7 +346,7 @@ itself in production.
 - [ ] Neon Realtime live dashboard updates
 - [ ] Webhook-driven order status sync (currently polled)
 
----
+<img src="docs/parley-divider.svg" width="100%" alt="" />
 
 <div align="center">
 

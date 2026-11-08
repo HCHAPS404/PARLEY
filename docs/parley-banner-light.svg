@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" fill="none">
+  <rect width="1200" height="320" fill="#fafaf8"/>
+  <g transform="translate(552 44) scale(3)">
+    <path d="M4 6h12a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-5l-5 4v-4H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" fill="#0f766e"/>
+    <path d="M28 12h-8a3 3 0 0 0-3 3v3a3 3 0 0 0 3 3h3l4 3v-3h1a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2Z" fill="#0f766e" opacity="0.45"/>
+  </g>
+  <text x="600" y="202" text-anchor="middle" font-family="'Space Grotesk','Inter',ui-sans-serif,sans-serif" font-size="54" font-weight="700" letter-spacing="16" fill="#17150f">PARLEY</text>
+  <text x="600" y="246" text-anchor="middle" font-family="'Inter',ui-sans-serif,sans-serif" font-size="22" fill="#6b675c">Procurement that negotiates.</text>
+  <text x="600" y="284" text-anchor="middle" font-family="'Inter',ui-sans-serif,sans-serif" font-size="15" fill="#0f766e">agents that parley · PayPal that settles</text>
+  <line x1="0" y1="319" x2="1200" y2="319" stroke="#e8e5dd" stroke-width="1"/>
+</svg>
