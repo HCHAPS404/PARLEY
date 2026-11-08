@@ -25,12 +25,19 @@ export async function GET(req: Request) {
   // Only the order's owner may convert an approval into an authorization.
   await ensureDb();
   const [owner] = await getDb()
-    .select({ userId: ordersLocal.userId })
+    .select({
+      userId: ordersLocal.userId,
+      status: ordersLocal.status,
+      authorizationId: ordersLocal.authorizationId,
+    })
     .from(ordersLocal)
     .where(eq(ordersLocal.paypalOrderId, orderId))
     .limit(1);
   if (owner && owner.userId && owner.userId !== user.id)
     return redirect("error=not_your_order");
+
+  // Retries (browser refresh, cold-start redirects) must not re-authorize.
+  if (owner?.authorizationId) return redirect(`authorized=${orderId}`);
 
   try {
     const auth = await authorizeOrder(orderId);
