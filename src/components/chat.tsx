@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { Logo } from "./brand";
+import { usePrefs } from "./preferences";
 
 const transport = new DefaultChatTransport({ api: "/api/chat" });
 
@@ -46,16 +47,16 @@ export function ChatArea({
     transport,
   });
   const router = useRouter();
+  const { t } = usePrefs();
   const [input, setInput] = useState("");
   // Banner derives from PayPal redirect params once, at mount (client-only read).
   const [banner, setBanner] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const p = new URLSearchParams(window.location.search);
     if (p.get("authorized"))
-      return `Payment approved — funds held in escrow for order ${p.get("authorized")}. Ask the agent to confirm delivery.`;
-    if (p.get("cancelled")) return "PayPal approval cancelled — nothing was held.";
-    if (p.get("error"))
-      return `Something went wrong during approval (${p.get("error")}).`;
+      return t("chat.bannerAuthorized", { order: p.get("authorized")! });
+    if (p.get("cancelled")) return t("chat.bannerCancelled");
+    if (p.get("error")) return t("chat.bannerError", { error: p.get("error")! });
     return null;
   });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -103,14 +104,14 @@ export function ChatArea({
         </div>
         <div className="hidden text-[13px] text-ink-soft md:block">
           Agentic procurement —{" "}
-          <span className="text-ink">find · negotiate · escrow · audit</span>
+          <span className="text-ink">{t("app.flow")}</span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
           <span className="rounded-full border border-line px-2.5 py-1 text-ink-soft">
-            sandbox
+            {t("sidebar.sandboxBadge")}
           </span>
           <span
-            className={`rounded-full px-2.5 py-1 font-medium ${
+            className={`rounded-full px-2.5 py-1 font-medium md:hidden ${
               user.role === "admin"
                 ? "bg-accent-mist text-accent-strong"
                 : "bg-paper text-ink-soft"
@@ -121,15 +122,15 @@ export function ChatArea({
           </span>
           <button
             onClick={logout}
-            className="rounded-full border border-line p-1.5 text-ink-soft hover:text-ink"
-            title="Sign out"
-            aria-label="Sign out"
+            className="rounded-full border border-line p-1.5 text-ink-soft hover:text-ink md:hidden"
+            title={t("nav.signOut")}
+            aria-label={t("nav.signOut")}
           >
             <LogOut className="h-3.5 w-3.5" />
           </button>
           <span
             className={`h-2 w-2 rounded-full ${busy ? "bg-warn animate-pulse" : "bg-ok"}`}
-            title={busy ? "working" : "ready"}
+            title={busy ? t("chat.working") : t("chat.ready")}
           />
         </div>
       </header>
@@ -172,14 +173,14 @@ export function ChatArea({
               }
             }}
             rows={1}
-            placeholder='Try "find a USB microphone under $80" or "negotiate the price on the second one"'
+            placeholder={t("chat.placeholder")}
             className="max-h-32 flex-1 resize-none rounded-xl border border-line bg-paper px-4 py-3 text-[14px] outline-none placeholder:text-ink-soft/60 focus:border-accent"
           />
           <button
             onClick={submit}
             disabled={busy || !input.trim()}
             className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent text-white transition-colors hover:bg-accent-strong disabled:opacity-40"
-            aria-label="Send"
+            aria-label={t("chat.send")}
           >
             {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -189,8 +190,7 @@ export function ChatArea({
           </button>
         </div>
         <p className="mx-auto mt-2 max-w-3xl text-[11px] text-ink-soft">
-          Funds are authorized, never auto-captured — every purchase ends with
-          your approval on PayPal.
+          {t("chat.footer")}
         </p>
       </div>
     </div>
@@ -198,27 +198,30 @@ export function ChatArea({
 }
 
 function EmptyState() {
+  const { t } = usePrefs();
   return (
     <div className="mt-16 text-center">
       <Logo className="mx-auto h-12 w-12 text-accent/70" />
       <h1 className="font-display mt-4 text-2xl font-semibold tracking-tight">
-        What should I procure for you?
+        {t("empty.title")}
       </h1>
       <p className="mx-auto mt-2 max-w-md text-[14px] leading-6 text-ink-soft">
-        I search real products, negotiate with the seller&apos;s agent, and pay
-        through PayPal escrow — funds release only when delivery is confirmed.
+        {t("empty.subtitle")}
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-2 text-[12px] text-ink-soft">
-        {[
-          "USB microphone under $80",
-          "Negotiate the second result",
-          "Show my recent orders",
-        ].map((s) => (
+        {(
+          [
+            "empty.chip1",
+            "empty.chip2",
+            "empty.chip3",
+            "empty.chip4",
+          ] as const
+        ).map((k) => (
           <span
-            key={s}
+            key={k}
             className="rounded-full border border-line bg-card px-3 py-1.5"
           >
-            {s}
+            {t(k)}
           </span>
         ))}
       </div>
@@ -227,10 +230,11 @@ function EmptyState() {
 }
 
 function Thinking() {
+  const { t } = usePrefs();
   return (
     <div className="flex items-center gap-2 text-[13px] text-ink-soft">
       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      working…
+      {t("chat.thinking")}
     </div>
   );
 }

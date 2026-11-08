@@ -4,9 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand";
+import { usePrefs } from "@/components/preferences";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t, lang, setLang } = usePrefs();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -29,7 +31,7 @@ export default function LoginPage() {
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) {
-      setError(data.error ?? "Something went wrong");
+      setError(data.error ?? t("common.error"));
       return;
     }
     router.push("/");
@@ -38,15 +40,30 @@ export default function LoginPage() {
 
   return (
     <div className="grid min-h-screen place-items-center bg-paper px-4">
+      {/* Language quick-switch — visible before login too */}
+      <div className="fixed right-4 top-4 flex rounded-md border border-line bg-card p-0.5 text-[11px] font-medium">
+        {(["en", "es"] as const).map((l) => (
+          <button
+            key={l}
+            onClick={() => setLang(l)}
+            className={`rounded px-2 py-1 uppercase transition-colors ${
+              lang === l
+                ? "bg-accent-mist text-accent-strong"
+                : "text-ink-soft hover:text-ink"
+            }`}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <Logo className="mx-auto h-10 w-10 text-accent" />
           <h1 className="font-display mt-4 text-xl font-semibold tracking-tight">
             Parley
           </h1>
-          <p className="mt-1 text-[13px] text-ink-soft">
-            Procurement that negotiates
-          </p>
+          <p className="mt-1 text-[13px] text-ink-soft">{t("login.subtitle")}</p>
         </div>
 
         <form
@@ -68,14 +85,14 @@ export default function LoginPage() {
                     : "text-ink-soft hover:text-ink"
                 }`}
               >
-                {m === "login" ? "Sign in" : "Register"}
+                {m === "login" ? t("login.signIn") : t("login.createAccount")}
               </button>
             ))}
           </div>
 
           {mode === "register" && (
             <label className="mb-3 block text-[12px] font-medium text-ink-soft">
-              Username
+              {t("login.username")}
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -88,7 +105,7 @@ export default function LoginPage() {
           )}
 
           <label className="mb-3 block text-[12px] font-medium text-ink-soft">
-            Email
+            {t("login.email")}
             <input
               type="email"
               value={email}
@@ -101,7 +118,7 @@ export default function LoginPage() {
           </label>
 
           <label className="mb-4 block text-[12px] font-medium text-ink-soft">
-            Password
+            {t("login.password")}
             <input
               type="password"
               value={password}
@@ -128,20 +145,23 @@ export default function LoginPage() {
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-2.5 text-[14px] font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "login" ? "Sign in" : "Create account"}
+            {busy
+              ? t("login.working")
+              : mode === "login"
+                ? t("login.signIn")
+                : t("login.createAccount")}
           </button>
 
           {mode === "register" && (
             <p className="mt-3 text-center text-[11px] leading-4 text-ink-soft">
-              New accounts get <strong>demo</strong> access — search and
-              negotiation included, spending tools off.
+              {t("login.demoNote")}
             </p>
           )}
         </form>
 
         <div className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-ink-soft">
           <ShieldCheck className="h-3.5 w-3.5 text-accent" />
-          Agentic escrow on PayPal sandbox — every action audited
+          {t("sidebar.escrow")} · {t("sidebar.audit").toLowerCase()}
         </div>
       </div>
     </div>
