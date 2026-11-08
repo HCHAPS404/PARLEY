@@ -145,7 +145,7 @@ export function authorizeOrder(orderId: string) {
 /** Release the held funds to the seller — call only after delivery is confirmed. */
 export function captureAuthorization(authorizationId: string) {
   return paypalFetch<{ id: string; status: string }>(
-    `/v2/checkout/authorizations/${authorizationId}/capture`,
+    `/v2/payments/authorizations/${authorizationId}/capture`,
     { method: "POST", body: "{}" },
     crypto.randomUUID(),
   );
@@ -154,7 +154,7 @@ export function captureAuthorization(authorizationId: string) {
 /** Cancel a hold (never delivered / negotiation failed). */
 export function voidAuthorization(authorizationId: string) {
   return paypalFetch<{ id: string; status: string }>(
-    `/v2/checkout/authorizations/${authorizationId}/void`,
+    `/v2/payments/authorizations/${authorizationId}/void`,
     { method: "POST", body: "{}" },
     crypto.randomUUID(),
   );
