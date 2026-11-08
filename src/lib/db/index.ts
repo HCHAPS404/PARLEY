@@ -87,6 +87,50 @@ create table if not exists alerts (
   payload jsonb,
   status text not null default 'open'
 );
+create table if not exists users (
+  id text primary key,
+  username text not null unique,
+  email text not null unique,
+  password_hash text not null,
+  role text not null default 'demo',
+  created_at timestamptz default now(),
+  last_login_at timestamptz
+);
+create table if not exists sessions (
+  id text primary key,
+  user_id text not null,
+  created_at timestamptz default now(),
+  expires_at timestamptz not null,
+  ip text,
+  user_agent text
+);
+create table if not exists messages (
+  id bigint generated always as identity primary key,
+  user_id text not null,
+  role text not null,
+  parts jsonb,
+  created_at timestamptz default now()
+);
+create table if not exists product_cache (
+  id text primary key,
+  user_id text not null,
+  product jsonb not null,
+  created_at timestamptz default now(),
+  expires_at timestamptz not null
+);
+create table if not exists negotiations (
+  id text primary key,
+  user_id text not null,
+  product_id text not null,
+  list_price_cents integer not null,
+  agreed_cents integer,
+  status text not null default 'open',
+  transcript jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table orders_local add column if not exists user_id text;
+alter table audit_log add column if not exists user_id text;
 insert into policies (id, name, max_per_tx_cents, daily_cap_cents, monthly_cap_cents, autonomous_limit_cents, allowed_vendors, active)
 select 'default', 'Default spend policy', 25000, 75000, 300000, 5000, null, true
 where not exists (select 1 from policies where id = 'default');
@@ -99,5 +143,24 @@ export function ensureDb(): Promise<void> {
     for (const stmt of BOOTSTRAP.split(";").map((s) => s.trim()).filter(Boolean)) {
       await db.execute(sql.raw(stmt));
     }
+    await seedAdmin(db);
   })());
+}
+
+/**
+ * Seed the admin account from env (ADMIN_USERNAME/ADMIN_EMAIL/ADMIN_PASSWORD).
+ * Only creates the row if it doesn't exist — credentials live in env, never git.
+ */
+async function seedAdmin(db: Db) {
+  if (!env.adminUsername || !env.adminEmail || !env.adminPassword) return;
+  const { hashPassword } = await import("../auth");
+  const rows = (await db.execute(
+    sql`select 1 from users where username = ${env.adminUsername}`,
+  )) as unknown;
+  const exists = (Array.isArray(rows) ? rows : (rows as { rows?: unknown[] })?.rows ?? []).length > 0;
+  if (exists) return;
+  await db.execute(
+    sql`insert into users (id, username, email, password_hash, role)
+        values (${crypto.randomUUID()}, ${env.adminUsername}, ${env.adminEmail}, ${hashPassword(env.adminPassword)}, 'admin')`,
+  );
 }

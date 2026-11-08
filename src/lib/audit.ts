@@ -11,6 +11,7 @@ export type Actor = "user" | "agent" | "merchant" | "system";
 export async function audit(entry: {
   actor: Actor;
   action: string;
+  userId?: string;
   input?: unknown;
   output?: unknown;
   rationale?: string;
@@ -24,6 +25,7 @@ export async function audit(entry: {
       .insert(auditLog)
       .values({
         actor: entry.actor,
+        userId: entry.userId ?? null,
         action: entry.action,
         input: entry.input == null ? null : JSON.parse(JSON.stringify(entry.input)),
         output:

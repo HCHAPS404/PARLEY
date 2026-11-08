@@ -1,6 +1,8 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
 import { ordersLocal } from "@/lib/db/schema";
+import { getSessionUser } from "@/lib/auth";
 
 /**
  * Escrow orders as Gantt tasks: each order is a parent task whose phases map
@@ -8,11 +10,15 @@ import { ordersLocal } from "@/lib/db/schema";
  * Undelivered orders project an expected delivery date; late ones surface as overdue.
  */
 export async function GET() {
+  const user = await getSessionUser();
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureDb();
   const db = getDb();
   const orders = await db
     .select()
     .from(ordersLocal)
+    .where(eq(ordersLocal.userId, user.id))
     .orderBy(desc(ordersLocal.createdAt))
     .limit(100);
 

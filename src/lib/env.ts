@@ -29,6 +29,10 @@ export const env = {
 
   cronSecret: process.env.CRON_SECRET ?? "",
 
+  adminUsername: process.env.ADMIN_USERNAME ?? "",
+  adminEmail: process.env.ADMIN_EMAIL ?? "",
+  adminPassword: process.env.ADMIN_PASSWORD ?? "",
+
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
 };
 

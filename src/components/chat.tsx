@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Handshake,
   Loader2,
+  LogOut,
   PackageSearch,
   ShieldCheck,
   Wrench,
@@ -35,12 +36,34 @@ const usd = (cents: number | null | undefined, cur = "USD") =>
 const money = (dollars: number | null | undefined, cur = "USD") =>
   dollars == null ? "—" : `$${Number(dollars).toFixed(2)} ${cur}`;
 
-export function ChatArea() {
-  const { messages, sendMessage, status, error } = useChat({ transport });
+export function ChatArea({
+  user,
+}: {
+  user: { username: string; role: string };
+}) {
+  const { messages, sendMessage, setMessages, status, error } = useChat({
+    transport,
+  });
   const [input, setInput] = useState("");
   const [banner, setBanner] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";
+
+  // Restore durable chat history once on mount.
+  useEffect(() => {
+    fetch("/api/messages/history")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.messages?.length) setMessages(d.messages);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  };
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -83,6 +106,24 @@ export function ChatArea() {
           <span className="rounded-full border border-line px-2.5 py-1 text-ink-soft">
             sandbox
           </span>
+          <span
+            className={`rounded-full px-2.5 py-1 font-medium ${
+              user.role === "admin"
+                ? "bg-accent-mist text-accent-strong"
+                : "bg-paper text-ink-soft"
+            }`}
+            title={`Signed in as ${user.username}`}
+          >
+            {user.username} · {user.role}
+          </span>
+          <button
+            onClick={logout}
+            className="rounded-full border border-line p-1.5 text-ink-soft hover:text-ink"
+            title="Sign out"
+            aria-label="Sign out"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
           <span
             className={`h-2 w-2 rounded-full ${busy ? "bg-warn animate-pulse" : "bg-ok"}`}
             title={busy ? "working" : "ready"}

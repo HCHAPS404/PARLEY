@@ -208,6 +208,7 @@ These are invariants, not features — the code enforces them:
 5. **Secrets stay server-side.** Only `NEXT_PUBLIC_*` variables reach the browser; the PayPal secret never does.
 6. **Tool results are data.** The system prompt instructs the model to treat tool output as untrusted content, never as instructions.
 7. **Audit never lies.** `audit()` wraps every consequential action and fails safe — a logging problem can never block or corrupt a payment path.
+8. **Authenticated, role-gated spend.** Sessions are httpOnly + server-side (scrypt passwords, SHA-256'd tokens). Only `admin` reaches spend tools and the merchant-account PayPal toolkit; `demo` accounts can search and negotiate under a hard daily message cap.
 
 ## Database
 
@@ -340,7 +341,9 @@ itself in production.
 - [x] Agentic escrow on PayPal (authorize → capture on delivery)
 - [x] Deterministic spend policy + audit trail
 - [x] Production deploy (Render + Neon)
-- [ ] Durable session/product cache (currently per-process)
+- [x] Auth with admin/demo roles — spend tools gated server-side
+- [x] Durable state — product cache, negotiations, chat history in Postgres per user
+- [x] Order dedup + per-user order isolation
 - [ ] Escrow watchdog cron — auto-flag overdue deliveries via `/api/jobs/*`
 - [ ] Vendor scoring wired into merchant selection
 - [ ] Neon Realtime live dashboard updates

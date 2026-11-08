@@ -9,6 +9,58 @@ import {
   numeric,
 } from "drizzle-orm/pg-core";
 
+/** Registered accounts. Only role='admin' may move funds or spend LLM tokens. */
+export const users = pgTable("users", {
+  id: text("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: text("role").notNull().default("demo"), // admin|demo
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+});
+
+/** Server-side sessions. Stores a SHA-256 of the bearer token, never the token. */
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(), // sha256(token)
+  userId: text("user_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+});
+
+/** Per-user chat history — durable trace of the conversation. */
+export const messages = pgTable("messages", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  userId: text("user_id").notNull(),
+  role: text("role").notNull(), // user|assistant
+  parts: jsonb("parts"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+/** Server-side product resolution — survives restarts, expires in 30 min. */
+export const productCache = pgTable("product_cache", {
+  id: text("id").primaryKey(), // Channel3 product id
+  userId: text("user_id").notNull(),
+  product: jsonb("product").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+/** Agent-to-agent negotiations — persisted so quotes survive turn boundaries. */
+export const negotiations = pgTable("negotiations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  productId: text("product_id").notNull(),
+  listPriceCents: integer("list_price_cents").notNull(),
+  agreedCents: integer("agreed_cents"),
+  status: text("status").notNull().default("open"), // open|agreed|walked
+  transcript: jsonb("transcript"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 /** Deterministic spending rules the agent can never override. */
 export const policies = pgTable("policies", {
   id: text("id").primaryKey(),
@@ -25,6 +77,7 @@ export const policies = pgTable("policies", {
 /** Local mirror of escrow orders; PayPal remains source of truth for money. */
 export const ordersLocal = pgTable("orders_local", {
   id: text("id").primaryKey(), // ulid/uuid generated in code
+  userId: text("user_id"), // owner — null only for pre-auth rows
   paypalOrderId: text("paypal_order_id").notNull().unique(),
   authorizationId: text("authorization_id"),
   status: text("status").notNull(), // created|approved|authorized|captured|voided|failed
@@ -45,6 +98,7 @@ export const ordersLocal = pgTable("orders_local", {
 export const auditLog = pgTable("audit_log", {
   id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
   ts: timestamp("ts", { withTimezone: true }).notNull().defaultNow(),
+  userId: text("user_id"), // whose action — null for system-level events
   actor: text("actor").notNull(), // user|agent|merchant|system
   action: text("action").notNull(),
   input: jsonb("input"),

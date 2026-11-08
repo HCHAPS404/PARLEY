@@ -1,17 +1,32 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
 import { alerts, auditLog, ordersLocal, vendorScores } from "@/lib/db/schema";
+import { getSessionUser } from "@/lib/auth";
 
 const money = (cents: number | null) =>
   cents == null ? null : Math.round(cents) / 100;
 
 export async function GET() {
+  const user = await getSessionUser();
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureDb();
   const db = getDb();
 
   const [orders, audit, vendors, alertRows] = await Promise.all([
-    db.select().from(ordersLocal).orderBy(desc(ordersLocal.createdAt)).limit(500),
-    db.select().from(auditLog).orderBy(desc(auditLog.ts)).limit(500),
+    db
+      .select()
+      .from(ordersLocal)
+      .where(eq(ordersLocal.userId, user.id))
+      .orderBy(desc(ordersLocal.createdAt))
+      .limit(500),
+    db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.userId, user.id))
+      .orderBy(desc(auditLog.ts))
+      .limit(500),
     db.select().from(vendorScores).limit(200),
     db.select().from(alerts).orderBy(desc(alerts.createdAt)).limit(200),
   ]);

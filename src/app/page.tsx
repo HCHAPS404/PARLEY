@@ -1,8 +1,29 @@
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { getSessionUser } from "@/lib/auth";
 import { ChatArea } from "@/components/chat";
 import { Logo } from "@/components/brand";
 import { ShieldCheck, Landmark, Radio } from "lucide-react";
 
 export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <div className="grid h-screen place-items-center text-ink-soft">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      }
+    >
+      <AuthedHome />
+    </Suspense>
+  );
+}
+
+async function AuthedHome() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
@@ -23,14 +44,18 @@ export default function Home() {
           <span className="rounded-md bg-accent-mist px-3 py-2 font-medium text-accent-strong">
             Agent
           </span>
-          <span className="rounded-md px-3 py-2 text-ink-soft">
-            Dashboard{" "}
-            <span className="ml-1 text-[10px] uppercase tracking-wide">soon</span>
-          </span>
-          <span className="rounded-md px-3 py-2 text-ink-soft">
-            Policies{" "}
-            <span className="ml-1 text-[10px] uppercase tracking-wide">soon</span>
-          </span>
+          <a
+            href="/analytics"
+            className="rounded-md px-3 py-2 text-ink-soft hover:bg-paper"
+          >
+            Analytics
+          </a>
+          <a
+            href="/pipeline"
+            className="rounded-md px-3 py-2 text-ink-soft hover:bg-paper"
+          >
+            Pipeline
+          </a>
         </nav>
 
         <div className="mt-auto space-y-2 border-t border-line p-4 text-[11px] text-ink-soft">
@@ -51,7 +76,7 @@ export default function Home() {
 
       {/* Main */}
       <main className="flex min-w-0 flex-1 flex-col">
-        <ChatArea />
+        <ChatArea user={{ username: user.username, role: user.role }} />
       </main>
     </div>
   );
