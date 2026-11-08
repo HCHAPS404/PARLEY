@@ -12,6 +12,7 @@
     "@ai-sdk/google": "^4.0.114",
     "@ai-sdk/openai-compatible": "^3.0.87",
     "@ai-sdk/react": "^4.0.169",
+    "@bryntum/gantt-react-enterprise": "^8.0.0",
     "@channel3/sdk": "^4.8.0",
     "@electric-sql/pglite": "^0.5.15",
     "@modelcontextprotocol/sdk": "^1.32.2",
