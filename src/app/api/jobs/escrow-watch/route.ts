@@ -45,10 +45,16 @@ export async function GET(req: Request) {
 
   await ensureDb();
   const db = getDb();
+  // Seed rows (SEED-* ids) are dashboard fixtures, not real PayPal orders.
   const open = await db
     .select()
     .from(ordersLocal)
-    .where(inArray(ordersLocal.status, ["created", "approved", "authorized"]));
+    .where(
+      and(
+        inArray(ordersLocal.status, ["created", "approved", "authorized"]),
+        sql`${ordersLocal.paypalOrderId} not like 'SEED-%'`,
+      ),
+    );
 
   const now = Date.now();
   const summary = { checked: open.length, reconciled: 0, expired: 0, alerts: 0, errors: 0 };
