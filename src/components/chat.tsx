@@ -148,7 +148,9 @@ export function ChatArea({
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
-          {messages.length === 0 && <EmptyState />}
+          {messages.length === 0 && (
+            <EmptyState onPick={(text) => sendMessage({ text })} />
+          )}
           {messages.map((m) => (
             <MessageRow key={m.id} role={m.role} parts={m.parts as never[]} />
           ))}
@@ -166,6 +168,7 @@ export function ChatArea({
         <div className="mx-auto flex max-w-3xl items-end gap-2">
           <textarea
             value={input}
+            autoFocus
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -198,7 +201,7 @@ export function ChatArea({
   );
 }
 
-function EmptyState() {
+function EmptyState({ onPick }: { onPick: (text: string) => void }) {
   const { t } = usePrefs();
   return (
     <div className="mt-16 text-center">
@@ -209,7 +212,7 @@ function EmptyState() {
       <p className="mx-auto mt-2 max-w-md text-[14px] leading-6 text-ink-soft">
         {t("empty.subtitle")}
       </p>
-      <div className="mt-6 flex flex-wrap justify-center gap-2 text-[12px] text-ink-soft">
+      <div className="mt-6 flex flex-wrap justify-center gap-2 text-[12px]">
         {(
           [
             "empty.chip1",
@@ -218,12 +221,13 @@ function EmptyState() {
             "empty.chip4",
           ] as const
         ).map((k) => (
-          <span
+          <button
             key={k}
-            className="rounded-full border border-line bg-card px-3 py-1.5"
+            onClick={() => onPick(t(k))}
+            className="rounded-full border border-line bg-card px-3 py-1.5 text-ink-soft transition-all hover:-translate-y-px hover:border-accent hover:text-accent-strong hover:shadow-sm"
           >
             {t(k)}
-          </span>
+          </button>
         ))}
       </div>
     </div>

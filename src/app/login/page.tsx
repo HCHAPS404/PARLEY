@@ -39,7 +39,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="grid min-h-screen place-items-center bg-paper px-4">
+    <div className="relative grid min-h-screen place-items-center bg-paper px-4">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,var(--color-line)_1px,transparent_0)] [background-size:28px_28px] opacity-60" />
+      <div className="pointer-events-none absolute -top-32 left-1/2 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-accent/10 blur-3xl" />
       {/* Language quick-switch — visible before login too */}
       <div className="fixed right-4 top-4 flex rounded-md border border-line bg-card p-0.5 text-[11px] font-medium">
         {(["en", "es"] as const).map((l) => (
@@ -57,7 +59,7 @@ export default function LoginPage() {
         ))}
       </div>
 
-      <div className="w-full max-w-sm">
+      <div className="relative w-full max-w-sm">
         <div className="mb-8 text-center">
           <Logo className="mx-auto h-10 w-10 text-accent" />
           <h1 className="font-display mt-4 text-xl font-semibold tracking-tight">

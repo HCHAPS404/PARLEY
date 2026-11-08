@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -139,41 +140,28 @@ export function Landing({ authed }: { authed: boolean }) {
             </a>
           </div>
 
-          {/* Escrow lifecycle visual */}
-          <div className="mx-auto mt-14 max-w-2xl">
-            <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
-              {t("land.hero.escrowCaption")}
-            </p>
-            <div className="rounded-2xl border border-line bg-card p-5 text-left shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="grid h-9 w-9 place-items-center rounded-lg bg-accent-mist">
-                    <Banknote className="h-4 w-4 text-accent-strong" />
-                  </div>
-                  <div>
-                    <div className="text-[13px] font-medium">
-                      USB condenser microphone ×1
-                    </div>
-                    <div className="font-mono text-[10px] text-ink-soft">
-                      order 9U7564522L7276832
-                    </div>
-                  </div>
+          {/* Animated product demo */}
+          <HeroDemo t={t} />
+
+          {/* Stats band */}
+          <div className="mx-auto mt-14 grid max-w-3xl grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4">
+            {(
+              [
+                ["100M+", "land.stats.products"],
+                ["$0", "land.stats.capture"],
+                ["15 min", "land.stats.watch"],
+                ["4", "land.stats.rounds"],
+              ] satisfies [string, I18nKey][]
+            ).map(([v, k]) => (
+              <div key={k} className="bg-card px-4 py-5 text-center">
+                <div className="font-display text-2xl font-semibold tracking-tight text-accent-strong">
+                  {v}
                 </div>
-                <span className="rounded-full bg-ok-soft px-2.5 py-1 text-[11px] font-medium text-ok">
-                  captured
-                </span>
+                <div className="mt-1 text-[11px] leading-4 text-ink-soft">
+                  {t(k)}
+                </div>
               </div>
-              <div className="mt-5">
-                <EscrowRail t={t} />
-              </div>
-              <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-3 text-[11px] text-ink-soft">
-                <span>$142.00 USD — AUTHORIZE → CAPTURE</span>
-                <span className="flex items-center gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5 text-accent" />
-                  PayPal escrow
-                </span>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
@@ -364,39 +352,124 @@ export function Landing({ authed }: { authed: boolean }) {
   );
 }
 
-/* The escrow rail — 4 states + the void fork, as a connected stepper. */
-function EscrowRail({ t }: { t: (key: I18nKey) => string }) {
-  const steps: { k: I18nKey; sub: I18nKey; tone: string }[] = [
-    { k: "land.steps.created", sub: "land.steps.createdSub", tone: "bg-warn-soft text-warn border-warn/30" },
-    { k: "land.steps.authorized", sub: "land.steps.authorizedSub", tone: "bg-accent-soft text-accent-strong border-accent/30" },
-    { k: "land.steps.held", sub: "land.steps.heldSub", tone: "bg-accent-mist text-accent-strong border-accent/30" },
-    { k: "land.steps.captured", sub: "land.steps.capturedSub", tone: "bg-ok-soft text-ok border-ok/30" },
-  ];
+/* Self-playing product demo — the agent's whole loop in ~7 seconds. */
+function HeroDemo({ t }: { t: (key: I18nKey) => string }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const timings = [900, 1600, 1600, 1700, 4200];
+    if (step >= timings.length) {
+      const reset = setTimeout(() => setStep(0), 500);
+      return () => clearTimeout(reset);
+    }
+    const id = setTimeout(() => setStep((s) => s + 1), timings[step]);
+    return () => clearTimeout(id);
+  }, [step]);
+
+  const enter = "transition-all duration-500 ease-out";
+  const show = (n: number) =>
+    step >= n
+      ? `${enter} opacity-100 translate-y-0`
+      : `${enter} pointer-events-none absolute opacity-0 translate-y-3`;
+
   return (
-    <div>
-      <div className="flex items-center">
-        {steps.map(({ k, sub, tone }, i) => (
-          <div key={k} className="flex flex-1 items-center last:flex-none">
-            <div className="flex flex-col items-center">
-              <div
-                className={`rounded-full border px-2.5 py-1 text-[10px] font-medium ${tone}`}
-              >
-                {t(k)}
+    <div className="mx-auto mt-14 max-w-2xl">
+      <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
+        {t("land.hero.escrowCaption")}
+      </p>
+      <div className="relative rounded-2xl border border-line bg-card p-5 text-left shadow-lg shadow-ink/5">
+        {/* user message */}
+        <div className={step >= 0 ? `${enter} opacity-100` : "opacity-0"}>
+          <div className="flex justify-end">
+            <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-ink px-4 py-2.5 text-[13px] text-paper">
+              {t("land.demo.user")}
+            </div>
+          </div>
+        </div>
+
+        {/* search result */}
+        <div className={`${show(1)} mt-4`}>
+          <div className="rounded-xl border border-line bg-paper px-3.5 py-3">
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-lg bg-card">
+                <PackageSearch className="h-5 w-5 text-ink-soft" />
               </div>
-              <div className="mt-1 whitespace-nowrap text-[9px] text-ink-soft">
-                {t(sub)}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-medium">
+                  Audio-Technica AT2020 — Cardioid Condenser
+                </div>
+                <div className="text-[11px] text-ink-soft">
+                  {t("land.demo.search")}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className="font-display text-[15px] font-semibold text-accent-strong">
+                  $149.00
+                </span>
+                <span className="rounded-full bg-ok-soft px-1.5 py-px text-[10px] font-medium text-ok">
+                  92
+                </span>
               </div>
             </div>
-            {i < steps.length - 1 && (
-              <div className="mx-1.5 mb-4 h-px flex-1 bg-line" />
-            )}
           </div>
-        ))}
-      </div>
-      <div className="mt-2 flex justify-end">
-        <div className="flex items-center gap-1.5 text-[9px] text-ink-soft">
-          <span className="rounded-full border border-line px-2 py-0.5">
-            {t("land.steps.voided")} · {t("land.steps.voidedSub")}
+        </div>
+
+        {/* negotiation */}
+        <div className={`${show(2)} mt-4 space-y-2`}>
+          <div className="flex justify-end">
+            <div className="rounded-xl bg-accent-mist px-3 py-2 text-[12px] text-accent-strong">
+              <span className="mr-1.5 text-[9px] font-semibold uppercase tracking-wide opacity-60">
+                Parley
+              </span>
+              {t("land.demo.neg1")}
+            </div>
+          </div>
+          <div className="flex justify-start">
+            <div className="rounded-xl bg-paper px-3 py-2 text-[12px] text-ink">
+              <span className="mr-1.5 text-[9px] font-semibold uppercase tracking-wide opacity-60">
+                Merchant
+              </span>
+              {t("land.demo.neg2")}
+              <span className="ml-2 rounded-full bg-ok-soft px-1.5 py-px text-[10px] font-medium text-ok">
+                {t("land.demo.agreed")}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* escrow card */}
+        <div className={`${show(3)} mt-4`}>
+          <div className="rounded-xl border border-accent/30 bg-accent-mist p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[13px] font-medium text-accent-strong">
+                <ShieldCheck className="h-4 w-4" />
+                {t("land.demo.escrow")}
+              </div>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors duration-500 ${
+                  step >= 4 ? "bg-ok-soft text-ok" : "bg-accent-soft text-accent-strong"
+                }`}
+              >
+                {step >= 4 ? t("land.demo.captured") : "authorized"}
+              </span>
+            </div>
+            <div className="mt-2.5 flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white">
+                {t("land.demo.approve")}
+              </span>
+              <span className="font-mono text-[10px] text-ink-soft/70">
+                order 9U7564522L7276832
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-3 text-[11px] text-ink-soft">
+          <span>{t("land.demo.held")}</span>
+          <span className="flex items-center gap-1">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${step >= 4 ? "bg-ok" : "bg-warn animate-pulse"}`}
+            />
+            PayPal escrow
           </span>
         </div>
       </div>

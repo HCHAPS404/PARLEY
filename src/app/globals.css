@@ -40,6 +40,10 @@
   --color-ok-soft: #14321f;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);
