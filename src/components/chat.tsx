@@ -12,6 +12,7 @@ import {
   LogOut,
   MessageSquare,
   PackageSearch,
+  Paperclip,
   Plus,
   ShieldCheck,
   Trash2,
@@ -55,6 +56,9 @@ export function ChatArea({
   const { t } = usePrefs();
   const [input, setInput] = useState("");
   const [plusKey, setPlusKey] = useState(0);
+  // Image attachments — {file,url} pairs so object URLs can be revoked cleanly.
+  const [files, setFiles] = useState<{ file: File; url: string }[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
   // Banner derives from PayPal redirect params once, at mount (client-only read).
   const [banner, setBanner] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -137,8 +141,35 @@ export function ChatArea({
         setActiveConv(convId);
       }
     }
-    sendMessage({ text }, { body: { conversationId: convId ?? undefined } });
+    let fileList: FileList | undefined;
+    if (files.length) {
+      const dt = new DataTransfer();
+      files.forEach(({ file }) => dt.items.add(file));
+      fileList = dt.files;
+      files.forEach(({ url }) => URL.revokeObjectURL(url));
+      setFiles([]);
+    }
+    sendMessage(
+      { text, files: fileList },
+      { body: { conversationId: convId ?? undefined } },
+    );
   };
+
+  const pickFiles = (list: FileList | null) => {
+    if (!list) return;
+    const ok = [...list]
+      .filter((f) => f.type.startsWith("image/") && f.size <= 2 * 1024 * 1024)
+      .slice(0, 4);
+    setFiles((p) =>
+      [...p, ...ok.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, 4),
+    );
+  };
+
+  const dropFile = (i: number) =>
+    setFiles((p) => {
+      URL.revokeObjectURL(p[i].url);
+      return p.filter((_, j) => j !== i);
+    });
 
   const selectConv = (id: string | null) => {
     if (busy || id === activeConv) return;
@@ -158,7 +189,7 @@ export function ChatArea({
 
   const submit = () => {
     const text = input.trim();
-    if (!text || busy) return;
+    if ((!text && !files.length) || busy) return;
     setInput("");
     void send(text);
   };
@@ -278,6 +309,26 @@ export function ChatArea({
 
       {/* Composer */}
       <div className="border-t border-line bg-card px-4 py-3">
+        {files.length > 0 && (
+          <div className="mx-auto mb-2 flex max-w-3xl gap-2">
+            {files.map(({ url }, i) => (
+              <div
+                key={url}
+                className="relative h-14 w-14 overflow-hidden rounded-lg border border-line"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <button
+                  onClick={() => dropFile(i)}
+                  className="absolute right-0.5 top-0.5 rounded-full bg-ink/70 p-0.5 text-paper hover:bg-ink"
+                  aria-label="Remove"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="mx-auto flex max-w-3xl items-end gap-2">
           <PlusMenu
             onPick={(text) => {
@@ -285,6 +336,26 @@ export function ChatArea({
               setPlusKey((k) => k + 1);
             }}
           />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              pickFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={busy || files.length >= 4}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line text-ink-soft transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            title={t("chat.attach")}
+            aria-label={t("chat.attach")}
+          >
+            <Paperclip className="h-4 w-4" />
+          </button>
           <textarea
             key={plusKey}
             value={input}
@@ -302,7 +373,7 @@ export function ChatArea({
           />
           <button
             onClick={submit}
-            disabled={busy || !input.trim()}
+            disabled={busy || (!input.trim() && !files.length)}
             className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent text-white transition-colors hover:bg-accent-strong disabled:opacity-40"
             aria-label={t("chat.send")}
           >
@@ -433,11 +504,32 @@ function MessageRow({ role, parts }: { role: string; parts: never[] }) {
       .filter((p) => (p as { type: string }).type === "text")
       .map((p) => (p as { text?: string }).text ?? "")
       .join("");
+    const images = parts.filter(
+      (p) =>
+        (p as { type: string }).type === "file" &&
+        (p as { mediaType?: string }).mediaType?.startsWith("image/") &&
+        (p as { url?: string }).url,
+    );
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-ink px-4 py-2.5 text-[14px] leading-6 text-paper">
-          {text}
-        </div>
+      <div className="flex flex-col items-end gap-2">
+        {images.length > 0 && (
+          <div className="flex max-w-[80%] flex-wrap justify-end gap-2">
+            {images.map((p, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={(p as { url: string }).url}
+                alt=""
+                className="max-h-40 rounded-xl border border-line object-cover"
+              />
+            ))}
+          </div>
+        )}
+        {text && (
+          <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-ink px-4 py-2.5 text-[14px] leading-6 text-paper">
+            {text}
+          </div>
+        )}
       </div>
     );
   }
@@ -510,7 +602,11 @@ function ToolPart({ part }: { part: any }) {
 function ProductImage({ src, alt }: { src?: string; alt: string }) {
   const [failed, setFailed] = useState(false);
   if (!src || failed) {
-    return <PackageSearch className="h-9 w-9 text-ink-soft/40" />;
+    return (
+      <div className="grid h-full place-items-center bg-paper">
+        <PackageSearch className="h-9 w-9 text-ink-soft/40" />
+      </div>
+    );
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -518,7 +614,7 @@ function ProductImage({ src, alt }: { src?: string; alt: string }) {
       src={src}
       alt={alt}
       onError={() => setFailed(true)}
-      className="max-h-full max-w-full object-contain"
+      className="block h-full w-full object-contain p-3"
       loading="lazy"
     />
   );
@@ -530,30 +626,30 @@ function ProductGrid({ products }: { products: ProductCard[] }) {
       {products.slice(0, 6).map((p) => (
         <div
           key={p.id}
-          className="group overflow-hidden rounded-xl border border-line bg-card transition-shadow hover:shadow-md"
+          className="group flex flex-col overflow-hidden rounded-xl border border-line bg-card transition-all hover:border-accent/50 hover:shadow-md"
         >
-          <div className="grid h-32 place-items-center bg-paper p-3">
+          <div className="relative h-36 shrink-0 overflow-hidden bg-white">
             <ProductImage src={p.image} alt={p.title} />
+            {p.offersCount > 1 && (
+              <span className="absolute right-2 top-2 rounded-full bg-ink/75 px-2 py-0.5 text-[10px] font-medium text-paper">
+                {p.offersCount} offers
+              </span>
+            )}
           </div>
-          <div className="border-t border-line/60 p-3">
-            <div className="line-clamp-2 min-h-8 text-[13px] font-medium leading-4">
+          <div className="flex flex-1 flex-col border-t border-line/60 p-3">
+            <div className="line-clamp-2 min-h-[2.1rem] text-[13px] font-medium leading-snug">
               {p.title}
             </div>
-            <div className="mt-1.5 flex items-baseline justify-between">
-              <span className="font-display text-[15px] font-semibold text-accent-strong">
-                {usd(p.bestPriceCents, p.currency)}
-              </span>
-              {p.offersCount > 1 && (
-                <span className="text-[11px] text-ink-soft">
-                  {p.offersCount} offers
-                </span>
-              )}
-            </div>
-            <div className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-ink-soft">
-              <span className="truncate">
-                {p.merchant}
-                {p.brand ? ` · ${p.brand}` : ""}
-              </span>
+            <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+              <div className="min-w-0">
+                <div className="font-display text-[15px] font-semibold text-ink">
+                  {usd(p.bestPriceCents, p.currency)}
+                </div>
+                <div className="truncate text-[11px] text-ink-soft">
+                  {p.merchant}
+                  {p.brand ? ` · ${p.brand}` : ""}
+                </div>
+              </div>
               {p.vendorScore != null && (
                 <span
                   className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium ${
