@@ -91,6 +91,42 @@ export function SellerDashboard() {
         ))}
       </div>
 
+      {/* Sales by day — the agent's output over the last 14 days */}
+      {(() => {
+        const days = Array.from({ length: 14 }, (_, i) => {
+          const d = new Date();
+          d.setDate(d.getDate() - (13 - i));
+          const key = d.toISOString().slice(0, 10);
+          return { key, label: `${d.getMonth() + 1}/${d.getDate()}`, cents: 0 };
+        });
+        const byDay = new Map(days.map((d) => [d.key, d]));
+        for (const s of sales) {
+          const k = s.createdAt?.slice(0, 10);
+          const d = k && byDay.get(k);
+          if (d) d.cents += s.agreedCents;
+        }
+        const max = Math.max(...days.map((d) => d.cents), 1);
+        return (
+          <div className="rounded-xl border border-line bg-card p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+              {t("sell.chart")}
+            </div>
+            <div className="mt-3 flex h-24 items-end gap-1.5">
+              {days.map((d) => (
+                <div key={d.key} className="flex flex-1 flex-col items-center gap-1">
+                  <div
+                    className="w-full rounded-sm bg-accent/70"
+                    style={{ height: `${Math.max(3, (d.cents / max) * 88)}%` }}
+                    title={`${d.label} — ${usd(d.cents)}`}
+                  />
+                  <span className="text-[8px] text-ink-soft">{d.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Agent card */}
       <div className="flex items-center justify-between rounded-xl border border-accent/25 bg-accent-mist/40 p-4">
         <div>

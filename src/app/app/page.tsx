@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
 import { ChatArea } from "@/components/chat";
+import { Onboarding } from "@/components/onboarding";
 
 export default function AppHome() {
   return (
@@ -25,6 +26,7 @@ async function AuthedApp() {
 
   return (
     <AppShell user={{ username: user.username, role: user.role, persona: user.persona }}>
+      <Onboarding />
       <ChatArea user={{ username: user.username, role: user.role }} />
     </AppShell>
   );
