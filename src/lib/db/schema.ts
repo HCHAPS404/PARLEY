@@ -41,11 +41,21 @@ export const spaces = pgTable("spaces", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+/** Named chat threads — each holds an isolated agent conversation. */
+export const conversations = pgTable("conversations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  spaceId: text("space_id"),
+  title: text("title").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 /** Per-user chat history — durable trace of the conversation. */
 export const messages = pgTable("messages", {
   id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
   userId: text("user_id").notNull(),
   spaceId: text("space_id"),
+  conversationId: text("conversation_id"),
   role: text("role").notNull(), // user|assistant
   parts: jsonb("parts"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

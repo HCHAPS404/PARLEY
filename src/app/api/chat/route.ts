@@ -8,6 +8,7 @@ import {
   getSessionUser,
   messagesToday,
   saveMessage,
+  getOwnedConversation,
   DEMO_DAILY_LIMIT,
 } from "@/lib/auth";
 import { getActiveSpace } from "@/lib/spaces";
@@ -33,13 +34,20 @@ export async function POST(req: Request) {
   }
 
   const space = await getActiveSpace(user.id);
-  const { messages } = await req.json();
+  const { messages, conversationId } = await req.json();
+
+  // Only persist into a thread the user actually owns in this space.
+  let convId: string | undefined;
+  if (typeof conversationId === "string" && conversationId) {
+    const owned = await getOwnedConversation(user.id, conversationId);
+    if (owned && owned.spaceId === space.id) convId = conversationId;
+  }
 
   // Persist the incoming user message for durable history.
   const last = messages?.[messages.length - 1];
   if (last?.role === "user") {
     try {
-      await saveMessage(user.id, "user", last.parts ?? [], space.id);
+      await saveMessage(user.id, "user", last.parts ?? [], space.id, convId);
     } catch (e) {
       console.error("[chat] persist user msg failed:", e);
     }
@@ -55,7 +63,7 @@ export async function POST(req: Request) {
     onFinish: async ({ usage, text }) => {
       try {
         if (text) {
-          await saveMessage(user.id, "assistant", [{ type: "text", text }], space.id);
+          await saveMessage(user.id, "assistant", [{ type: "text", text }], space.id, convId);
         }
       } catch (e) {
         console.error("[chat] persist assistant msg failed:", e);

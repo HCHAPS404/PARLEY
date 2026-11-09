@@ -54,6 +54,10 @@ const en = {
   "chat.thinking": "Working…",
   "chat.ready": "ready",
   "chat.working": "working",
+  "chat.conversations": "Conversations",
+  "chat.newChat": "New chat",
+  "chat.deleteConv": "Delete conversation",
+  "chat.deleteConvConfirm": "Delete this conversation and its history?",
   "chat.bannerAuthorized":
     "Payment approved — funds held in escrow for order {order}. Ask the agent to confirm delivery.",
   "chat.bannerCancelled": "PayPal approval cancelled — nothing was held.",
@@ -361,6 +365,10 @@ const es: Record<I18nKey, string> = {
   "chat.thinking": "Trabajando…",
   "chat.ready": "listo",
   "chat.working": "trabajando",
+  "chat.conversations": "Conversaciones",
+  "chat.newChat": "Nuevo chat",
+  "chat.deleteConv": "Eliminar conversación",
+  "chat.deleteConvConfirm": "¿Eliminar esta conversación y su historial?",
   "chat.bannerAuthorized":
     "Pago aprobado — fondos retenidos en escrow para la orden {order}. Pídele al agente confirmar la entrega.",
   "chat.bannerCancelled": "Aprobación de PayPal cancelada — no se retuvo nada.",

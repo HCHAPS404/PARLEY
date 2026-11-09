@@ -10,9 +10,11 @@ import {
   Handshake,
   Loader2,
   LogOut,
+  MessageSquare,
   PackageSearch,
   Plus,
   ShieldCheck,
+  Trash2,
   Wrench,
   X,
 } from "lucide-react";
@@ -66,16 +68,44 @@ export function ChatArea({
   const scrollRef = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";
 
-  // Restore durable chat history once on mount.
+  // Conversation threads — isolated chats per question or procurement task.
+  const [convs, setConvs] = useState<{ id: string; title: string }[]>([]);
+  const [activeConv, setActiveConv] = useState<string | null>(null);
+  const [convsLoaded, setConvsLoaded] = useState(false);
+  const suppressHistory = useRef(false);
+
+  // Load threads once; reopen the last one the user had active.
   useEffect(() => {
-    fetch("/api/messages/history")
+    fetch("/api/conversations")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d?.messages?.length) setMessages(d.messages);
+        const list = (d?.conversations ?? []) as { id: string; title: string }[];
+        setConvs(list);
+        const last = localStorage.getItem("parley:active-conv");
+        setActiveConv(list.some((c) => c.id === last) ? last : (list[0]?.id ?? null));
+        setConvsLoaded(true);
       })
+      .catch(() => setConvsLoaded(true));
+  }, []);
+
+  // Swap durable history whenever the active thread changes.
+  useEffect(() => {
+    if (!convsLoaded) return;
+    if (!activeConv) {
+      setMessages([]);
+      return;
+    }
+    if (suppressHistory.current) {
+      suppressHistory.current = false;
+      return;
+    }
+    localStorage.setItem("parley:active-conv", activeConv);
+    fetch(`/api/messages/history?conversationId=${encodeURIComponent(activeConv)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setMessages(d?.messages ?? []))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeConv, convsLoaded]);
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -91,15 +121,95 @@ export function ChatArea({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
+  const send = async (text: string) => {
+    let convId = activeConv;
+    if (!convId) {
+      const r = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: text.slice(0, 60) }),
+      });
+      const d = await r.json().catch(() => null);
+      convId = d?.conversation?.id ?? null;
+      if (convId) {
+        suppressHistory.current = true;
+        setConvs((p) => [{ id: convId!, title: d.conversation.title }, ...p]);
+        setActiveConv(convId);
+      }
+    }
+    sendMessage({ text }, { body: { conversationId: convId ?? undefined } });
+  };
+
+  const selectConv = (id: string | null) => {
+    if (busy || id === activeConv) return;
+    if (id === null) localStorage.removeItem("parley:active-conv");
+    setActiveConv(id);
+  };
+
+  const removeConv = async (id: string) => {
+    if (!confirm(t("chat.deleteConvConfirm"))) return;
+    await fetch(`/api/conversations?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    setConvs((p) => p.filter((c) => c.id !== id));
+    if (activeConv === id) {
+      localStorage.removeItem("parley:active-conv");
+      setActiveConv(null);
+    }
+  };
+
   const submit = () => {
     const text = input.trim();
     if (!text || busy) return;
     setInput("");
-    sendMessage({ text });
+    void send(text);
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full">
+      {/* Conversation rail */}
+      <aside className="hidden w-52 shrink-0 flex-col border-r border-line bg-card md:flex">
+        <div className="flex items-center justify-between px-3 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+            {t("chat.conversations")}
+          </span>
+          <button
+            onClick={() => selectConv(null)}
+            className="rounded-md p-1 text-ink-soft transition-colors hover:bg-ink/5 hover:text-ink"
+            title={t("chat.newChat")}
+            aria-label={t("chat.newChat")}
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
+          {convs.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => selectConv(c.id)}
+              className={`group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] ${
+                c.id === activeConv
+                  ? "bg-accent-mist font-medium text-ink"
+                  : "text-ink-soft hover:bg-ink/5 hover:text-ink"
+              }`}
+            >
+              <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              <span className="min-w-0 flex-1 truncate">{c.title}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void removeConv(c.id);
+                }}
+                className="hidden shrink-0 rounded p-0.5 text-ink-soft hover:text-danger group-hover:block"
+                aria-label={t("chat.deleteConv")}
+                title={t("chat.deleteConv")}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <div className="flex h-full min-w-0 flex-1 flex-col">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-line bg-card px-5 py-3">
         <div className="flex items-center gap-2 md:hidden">
@@ -152,7 +262,7 @@ export function ChatArea({
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
           {messages.length === 0 && (
-            <EmptyState onPick={(text) => sendMessage({ text })} />
+            <EmptyState onPick={(text) => void send(text)} />
           )}
           {messages.map((m) => (
             <MessageRow key={m.id} role={m.role} parts={m.parts as never[]} />
@@ -206,6 +316,7 @@ export function ChatArea({
         <p className="mx-auto mt-2 max-w-3xl text-[11px] text-ink-soft">
           {t("chat.footer")}
         </p>
+      </div>
       </div>
     </div>
   );

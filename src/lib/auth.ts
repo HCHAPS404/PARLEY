@@ -6,9 +6,9 @@ import {
   randomUUID,
 } from "node:crypto";
 import { cookies } from "next/headers";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, isNull } from "drizzle-orm";
 import { getDb, ensureDb } from "./db";
-import { users, sessions, messages } from "./db/schema";
+import { users, sessions, messages, conversations } from "./db/schema";
 
 /**
  * Session auth — scrypt password hashing, opaque bearer tokens stored
@@ -171,33 +171,116 @@ export async function messagesToday(userId: string): Promise<number> {
   return Number(rows[0]?.c ?? 0);
 }
 
-// ─── History ────────────────────────────────────────────────────────
+// ─── Conversations & history ────────────────────────────────────────
+export async function listConversations(userId: string, spaceId?: string) {
+  await ensureDb();
+  const scope = spaceId
+    ? and(eq(conversations.userId, userId), eq(conversations.spaceId, spaceId))
+    : eq(conversations.userId, userId);
+
+  // Lazy migration: pre-conversations history gets folded into one thread so
+  // nothing the user had before disappears.
+  const orphans = await getDb()
+    .select({ id: messages.id })
+    .from(messages)
+    .where(
+      spaceId
+        ? and(
+            eq(messages.userId, userId),
+            eq(messages.spaceId, spaceId),
+            isNull(messages.conversationId),
+          )
+        : and(eq(messages.userId, userId), isNull(messages.conversationId)),
+    )
+    .limit(1);
+  if (orphans.length) {
+    const legacyId = randomUUID();
+    await getDb()
+      .insert(conversations)
+      .values({ id: legacyId, userId, spaceId: spaceId ?? null, title: "Previous chat" });
+    await getDb()
+      .update(messages)
+      .set({ conversationId: legacyId })
+      .where(
+        spaceId
+          ? and(
+              eq(messages.userId, userId),
+              eq(messages.spaceId, spaceId),
+              isNull(messages.conversationId),
+            )
+          : and(eq(messages.userId, userId), isNull(messages.conversationId)),
+      );
+  }
+
+  return getDb()
+    .select()
+    .from(conversations)
+    .where(scope)
+    .orderBy(desc(conversations.createdAt));
+}
+
+export async function createConversation(userId: string, spaceId: string, title: string) {
+  await ensureDb();
+  const id = randomUUID();
+  const safeTitle = title.trim().slice(0, 80) || "New chat";
+  await getDb()
+    .insert(conversations)
+    .values({ id, userId, spaceId, title: safeTitle });
+  return { id, title: safeTitle };
+}
+
+/** Returns the conversation only if it belongs to this user — callers scope by space separately. */
+export async function getOwnedConversation(userId: string, id: string) {
+  const rows = await getDb()
+    .select()
+    .from(conversations)
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function deleteConversation(userId: string, id: string) {
+  const owned = await getOwnedConversation(userId, id);
+  if (!owned) return false;
+  await getDb()
+    .delete(messages)
+    .where(and(eq(messages.conversationId, id), eq(messages.userId, userId)));
+  await getDb().delete(conversations).where(eq(conversations.id, id));
+  return true;
+}
+
 export async function saveMessage(
   userId: string,
   role: "user" | "assistant",
   parts: unknown,
   spaceId?: string,
+  conversationId?: string,
 ) {
   await getDb()
     .insert(messages)
     .values({
       userId,
       spaceId: spaceId ?? null,
+      conversationId: conversationId ?? null,
       role,
       parts: parts == null ? null : JSON.parse(JSON.stringify(parts)),
     });
 }
 
-export async function loadHistory(userId: string, spaceId?: string, limit = 60) {
+export async function loadHistory(
+  userId: string,
+  spaceId?: string,
+  conversationId?: string,
+  limit = 60,
+) {
   await ensureDb();
+  const filters = [eq(messages.userId, userId)];
+  if (spaceId) filters.push(eq(messages.spaceId, spaceId));
+  if (conversationId) filters.push(eq(messages.conversationId, conversationId));
   const rows = await getDb()
     .select()
     .from(messages)
-    .where(
-      spaceId
-        ? and(eq(messages.userId, userId), eq(messages.spaceId, spaceId))
-        : eq(messages.userId, userId),
-    )
+    .where(and(...filters))
     .orderBy(desc(messages.id))
     .limit(limit);
   return rows

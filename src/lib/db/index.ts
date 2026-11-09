@@ -205,6 +205,14 @@ create table if not exists reorder_rules (
 insert into policies (id, name, max_per_tx_cents, daily_cap_cents, monthly_cap_cents, autonomous_limit_cents, allowed_vendors, active)
 select 'default', 'Default spend policy', 25000, 75000, 300000, 5000, null, true
 where not exists (select 1 from policies where id = 'default');
+create table if not exists conversations (
+  id text primary key,
+  user_id text not null,
+  space_id text,
+  title text not null,
+  created_at timestamptz default now()
+);
+alter table messages add column if not exists conversation_id text;
 `;
 
 /** Idempotent schema bootstrap — runs once per process, lazily on first use. */
