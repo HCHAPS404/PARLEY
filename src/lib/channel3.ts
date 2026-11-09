@@ -42,6 +42,7 @@ interface RawProduct {
   brand?: string | { name?: string };
   image?: string;
   image_url?: string;
+  images?: { url?: string; is_main_image?: boolean }[];
   offers?: RawOffer[];
 }
 
@@ -66,7 +67,11 @@ function normalize(p: RawProduct): ProductCard {
     id: String(p.id ?? ""),
     title: p.title ?? p.name ?? "Untitled product",
     brand: typeof p.brand === "string" ? p.brand : p.brand?.name,
-    image: p.image ?? p.image_url,
+    image:
+      p.image ??
+      p.image_url ??
+      p.images?.find((i) => i.is_main_image)?.url ??
+      p.images?.[0]?.url,
     bestPriceCents: best?.priceCents ?? null,
     currency: best?.currency ?? "USD",
     merchant: best?.domain,
