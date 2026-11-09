@@ -140,6 +140,19 @@ create table if not exists negotiations (
 alter table orders_local add column if not exists user_id text;
 alter table orders_local add column if not exists authorization_expires_at timestamptz;
 alter table audit_log add column if not exists user_id text;
+create table if not exists spaces (
+  id text primary key,
+  user_id text not null,
+  name text not null,
+  color text not null default 'teal',
+  created_at timestamptz default now()
+);
+alter table policies add column if not exists space_id text;
+alter table orders_local add column if not exists space_id text;
+alter table audit_log add column if not exists space_id text;
+alter table messages add column if not exists space_id text;
+alter table negotiations add column if not exists space_id text;
+alter table alerts add column if not exists space_id text;
 insert into policies (id, name, max_per_tx_cents, daily_cap_cents, monthly_cap_cents, autonomous_limit_cents, allowed_vendors, active)
 select 'default', 'Default spend policy', 25000, 75000, 300000, 5000, null, true
 where not exists (select 1 from policies where id = 'default');
@@ -154,6 +167,7 @@ export function ensureDb(): Promise<void> {
         await db.execute(sql.raw(stmt));
       }
       await seedAdmin(db);
+      await backfillSpaces(db);
     } catch (e) {
       g.__parleyBoot = undefined; // allow retry instead of caching a rejection forever
       throw e;
@@ -177,4 +191,44 @@ async function seedAdmin(db: Db) {
     sql`insert into users (id, username, email, password_hash, role)
         values (${crypto.randomUUID()}, ${env.adminUsername}, ${env.adminEmail}, ${hashPassword(env.adminPassword)}, 'admin')`,
   );
+}
+
+/**
+ * Every user gets a "Personal" space + a policy row copied from the 'default'
+ * template. Pre-spaces rows (orders/messages/audit/negotiations) are assigned
+ * to that space so nothing floats unscoped.
+ */
+async function backfillSpaces(db: Db) {
+  const res = (await db.execute(sql`select id from users`)) as unknown;
+  const userRows = (Array.isArray(res) ? res : (res as { rows?: { id: string }[] })?.rows ?? []) as { id: string }[];
+  for (const { id: userId } of userRows) {
+    const spaceRes = (await db.execute(
+      sql`insert into spaces (id, user_id, name, color)
+          select ${crypto.randomUUID()}, ${userId}, 'Personal', 'teal'
+          where not exists (select 1 from spaces where user_id = ${userId})
+          returning id`,
+    )) as unknown;
+    const created = (Array.isArray(spaceRes) ? spaceRes : (spaceRes as { rows?: { id: string }[] })?.rows ?? []) as { id: string }[];
+    const [space] =
+      created.length > 0
+        ? created
+        : (((await db.execute(
+            sql`select id from spaces where user_id = ${userId} order by created_at limit 1`,
+          )) as unknown) as { id: string }[]);
+    if (!space) continue;
+    // The space gets its own policy row — caps are per-space, never shared.
+    await db.execute(
+      sql`insert into policies (id, space_id, name, max_per_tx_cents, daily_cap_cents, monthly_cap_cents, autonomous_limit_cents, allowed_vendors, active)
+          select ${`pol_${space.id}`}, ${space.id}, name, max_per_tx_cents, daily_cap_cents, monthly_cap_cents, autonomous_limit_cents, allowed_vendors, active
+          from policies where id = 'default'
+          and not exists (select 1 from policies where space_id = ${space.id})`,
+    );
+    for (const table of ["orders_local", "messages", "audit_log", "negotiations"]) {
+      await db.execute(
+        sql.raw(
+          `update ${table} t set space_id = '${space.id}' from spaces s where s.user_id = t.user_id and s.id = '${space.id}' and t.space_id is null and t.user_id = '${userId}'`,
+        ),
+      );
+    }
+  }
 }

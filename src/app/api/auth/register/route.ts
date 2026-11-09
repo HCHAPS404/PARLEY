@@ -10,6 +10,7 @@ import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { or, eq } from "drizzle-orm";
 import { audit } from "@/lib/audit";
+import { createSpace } from "@/lib/spaces";
 
 const body = z.object({
   username: z
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
     );
 
   const userId = await createUser({ username, email, password });
+  await createSpace(userId, "Personal");
   const token = newSessionToken();
   await createSession(userId, token, {
     ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),

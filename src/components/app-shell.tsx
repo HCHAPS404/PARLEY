@@ -16,6 +16,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { Logo } from "./brand";
+import { SpaceSwitcher } from "./space-switcher";
 import { usePrefs } from "./preferences";
 
 const NAV = [
@@ -59,6 +60,8 @@ export function AppShell({
             <div className="text-[11px] text-ink-soft">{t("app.tagline")}</div>
           </div>
         </div>
+
+        <SpaceSwitcher />
 
         <nav className="flex flex-col gap-1 p-3 text-sm">
           {NAV.map(({ href, key, icon: Icon }) => {

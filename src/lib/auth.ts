@@ -6,7 +6,7 @@ import {
   randomUUID,
 } from "node:crypto";
 import { cookies } from "next/headers";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import { getDb, ensureDb } from "./db";
 import { users, sessions, messages } from "./db/schema";
 
@@ -172,18 +172,28 @@ export async function saveMessage(
   userId: string,
   role: "user" | "assistant",
   parts: unknown,
+  spaceId?: string,
 ) {
   await getDb()
     .insert(messages)
-    .values({ userId, role, parts: parts == null ? null : JSON.parse(JSON.stringify(parts)) });
+    .values({
+      userId,
+      spaceId: spaceId ?? null,
+      role,
+      parts: parts == null ? null : JSON.parse(JSON.stringify(parts)),
+    });
 }
 
-export async function loadHistory(userId: string, limit = 60) {
+export async function loadHistory(userId: string, spaceId?: string, limit = 60) {
   await ensureDb();
   const rows = await getDb()
     .select()
     .from(messages)
-    .where(eq(messages.userId, userId))
+    .where(
+      spaceId
+        ? and(eq(messages.userId, userId), eq(messages.spaceId, spaceId))
+        : eq(messages.userId, userId),
+    )
     .orderBy(desc(messages.id))
     .limit(limit);
   return rows

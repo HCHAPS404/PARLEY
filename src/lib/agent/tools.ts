@@ -34,6 +34,7 @@ const toCents = (dollars: number) => Math.round(dollars * 100);
 export type AgentCtx = {
   userId: string;
   role: "admin" | "demo";
+  spaceId: string;
 };
 
 type Negotiation = {
@@ -134,11 +135,21 @@ async function cacheGet(userId: string, id: string): Promise<ProductCard | null>
   return (rows[0]?.product as ProductCard) ?? null;
 }
 
-async function negGet(userId: string, id: string): Promise<Negotiation | null> {
+async function negGet(
+  userId: string,
+  spaceId: string,
+  id: string,
+): Promise<Negotiation | null> {
   const rows = await getDb()
     .select()
     .from(negotiationsTable)
-    .where(and(eq(negotiationsTable.id, id), eq(negotiationsTable.userId, userId)))
+    .where(
+      and(
+        eq(negotiationsTable.id, id),
+        eq(negotiationsTable.userId, userId),
+        eq(negotiationsTable.spaceId, spaceId),
+      ),
+    )
     .limit(1);
   const r = rows[0];
   if (!r) return null;
@@ -152,12 +163,13 @@ async function negGet(userId: string, id: string): Promise<Negotiation | null> {
   };
 }
 
-async function negPut(userId: string, n: Negotiation) {
+async function negPut(userId: string, spaceId: string, n: Negotiation) {
   await getDb()
     .insert(negotiationsTable)
     .values({
       id: n.id,
       userId,
+      spaceId,
       productId: n.productId,
       listPriceCents: n.listPriceCents,
       agreedCents: n.agreedCents,
@@ -197,7 +209,7 @@ export function agentTools(ctx: AgentCtx) {
           await audit({
             actor: "system",
             action: "rate_limited",
-            userId: ctx.userId,
+            userId: ctx.userId, spaceId: ctx.spaceId,
             input: { tool: "search_products" },
             output: { retryAfterSec: rl.retryAfterSec },
           });
@@ -215,7 +227,7 @@ export function agentTools(ctx: AgentCtx) {
         await audit({
           actor: "agent",
           action: "search_products",
-          userId: ctx.userId,
+          userId: ctx.userId, spaceId: ctx.spaceId,
           input: { query, imageUrl, maxPriceUsd },
           output: { count: products.length, error },
         });
@@ -241,7 +253,7 @@ export function agentTools(ctx: AgentCtx) {
           return { error: "Product not in search context — run search_products first" };
         }
         let session = negotiationId
-          ? await negGet(ctx.userId, negotiationId)
+          ? await negGet(ctx.userId, ctx.spaceId, negotiationId)
           : null;
         if (!session) {
           session = {
@@ -275,11 +287,11 @@ export function agentTools(ctx: AgentCtx) {
         } else if (resp.action === "walk") {
           session.status = "walked";
         }
-        await negPut(ctx.userId, session);
+        await negPut(ctx.userId, ctx.spaceId, session);
         await audit({
           actor: "merchant",
           action: "merchant_quote",
-          userId: ctx.userId,
+          userId: ctx.userId, spaceId: ctx.spaceId,
           input: { productId, offerUsd, negotiationId },
           output: resp,
         });
@@ -312,7 +324,7 @@ export function agentTools(ctx: AgentCtx) {
           await audit({
             actor: "system",
             action: "demo_spend_blocked",
-            userId: ctx.userId,
+            userId: ctx.userId, spaceId: ctx.spaceId,
             input: { productId, quantity },
           });
           return { error: DEMO_SPEND_ERROR };
@@ -326,7 +338,7 @@ export function agentTools(ctx: AgentCtx) {
         let unitCents = product.bestPriceCents;
         let negotiated = false;
         if (negotiationId) {
-          const n = await negGet(ctx.userId, negotiationId);
+          const n = await negGet(ctx.userId, ctx.spaceId, negotiationId);
           if (n?.status === "agreed" && n.agreedCents != null) {
             unitCents = n.agreedCents;
             negotiated = true;
@@ -343,6 +355,7 @@ export function agentTools(ctx: AgentCtx) {
           .where(
             and(
               eq(ordersLocal.userId, ctx.userId),
+              eq(ordersLocal.spaceId, ctx.spaceId),
               eq(ordersLocal.amountCents, amountCents),
               sql`${ordersLocal.productSnapshot}->>'id' = ${productId}`,
               sql`${ordersLocal.status} in ('created','approved','authorized')`,
@@ -364,12 +377,12 @@ export function agentTools(ctx: AgentCtx) {
           };
         }
 
-        const decision = await checkPolicy({ amountCents, vendor: product.merchant });
+        const decision = await checkPolicy({ amountCents, vendor: product.merchant, spaceId: ctx.spaceId });
         if (!decision.allow) {
           await audit({
             actor: "system",
             action: "policy_denied",
-            userId: ctx.userId,
+            userId: ctx.userId, spaceId: ctx.spaceId,
             input: { productId, quantity, amountCents },
             output: decision,
           });
@@ -389,7 +402,7 @@ export function agentTools(ctx: AgentCtx) {
 
         await db.insert(ordersLocal).values({
           id: crypto.randomUUID(),
-          userId: ctx.userId,
+          userId: ctx.userId, spaceId: ctx.spaceId,
           paypalOrderId: order.id,
           status: "created",
           title: product.title,
@@ -404,7 +417,7 @@ export function agentTools(ctx: AgentCtx) {
         await audit({
           actor: "agent",
           action: "create_escrow_order",
-          userId: ctx.userId,
+          userId: ctx.userId, spaceId: ctx.spaceId,
           input: { productId, quantity, negotiationId },
           output: { orderId: order.id, status: order.status },
           rationale: decision.reason,
@@ -440,6 +453,7 @@ export function agentTools(ctx: AgentCtx) {
             and(
               eq(ordersLocal.paypalOrderId, paypalOrderId),
               eq(ordersLocal.userId, ctx.userId),
+              eq(ordersLocal.spaceId, ctx.spaceId),
             ),
           )
           .limit(1);
@@ -465,7 +479,7 @@ export function agentTools(ctx: AgentCtx) {
         await audit({
           actor: "system",
           action: "escrow_captured",
-          userId: ctx.userId,
+          userId: ctx.userId, spaceId: ctx.spaceId,
           input: { paypalOrderId, authId },
           output: capture,
           rationale: "Delivery confirmed — hold released to seller",
@@ -497,6 +511,7 @@ export function agentTools(ctx: AgentCtx) {
             and(
               eq(ordersLocal.paypalOrderId, paypalOrderId),
               eq(ordersLocal.userId, ctx.userId),
+              eq(ordersLocal.spaceId, ctx.spaceId),
             ),
           )
           .limit(1);
@@ -531,7 +546,7 @@ export function agentTools(ctx: AgentCtx) {
         await audit({
           actor: "system",
           action: "escrow_voided",
-          userId: ctx.userId,
+          userId: ctx.userId, spaceId: ctx.spaceId,
           input: { paypalOrderId, authId, reason },
           output: voided,
           rationale: reason ?? "Delivery failed or deal abandoned — hold returned to buyer",
@@ -556,6 +571,7 @@ export function agentTools(ctx: AgentCtx) {
             and(
               eq(ordersLocal.paypalOrderId, paypalOrderId),
               eq(ordersLocal.userId, ctx.userId),
+              eq(ordersLocal.spaceId, ctx.spaceId),
             ),
           )
           .limit(1);
@@ -579,7 +595,12 @@ export function agentTools(ctx: AgentCtx) {
         const rows = await getDb()
           .select()
           .from(ordersLocal)
-          .where(eq(ordersLocal.userId, ctx.userId))
+          .where(
+            and(
+              eq(ordersLocal.userId, ctx.userId),
+              eq(ordersLocal.spaceId, ctx.spaceId),
+            ),
+          )
           .orderBy(desc(ordersLocal.createdAt))
           .limit(limit);
         return {

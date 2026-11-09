@@ -1,8 +1,9 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
 import { alerts, auditLog, ordersLocal, vendorScores } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { getActiveSpace } from "@/lib/spaces";
 
 const money = (cents: number | null) =>
   cents == null ? null : Math.round(cents) / 100;
@@ -13,22 +14,28 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureDb();
   const db = getDb();
+  const space = await getActiveSpace(user.id);
 
   const [orders, audit, vendors, alertRows] = await Promise.all([
     db
       .select()
       .from(ordersLocal)
-      .where(eq(ordersLocal.userId, user.id))
+      .where(and(eq(ordersLocal.userId, user.id), eq(ordersLocal.spaceId, space.id)))
       .orderBy(desc(ordersLocal.createdAt))
       .limit(500),
     db
       .select()
       .from(auditLog)
-      .where(eq(auditLog.userId, user.id))
+      .where(and(eq(auditLog.userId, user.id), eq(auditLog.spaceId, space.id)))
       .orderBy(desc(auditLog.ts))
       .limit(500),
-    db.select().from(vendorScores).limit(200),
-    db.select().from(alerts).orderBy(desc(alerts.createdAt)).limit(200),
+    db.select().from(vendorScores).limit(200), // vendor reputation is shared truth
+    db
+      .select()
+      .from(alerts)
+      .where(eq(alerts.spaceId, space.id))
+      .orderBy(desc(alerts.createdAt))
+      .limit(200),
   ]);
 
   return Response.json({

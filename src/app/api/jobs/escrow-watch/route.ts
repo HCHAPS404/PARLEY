@@ -15,6 +15,7 @@ async function alertOnce(
   db: ReturnType<typeof getDb>,
   kind: string,
   payload: Record<string, unknown>,
+  spaceId?: string | null,
 ) {
   const [existing] = await db
     .select({ id: alerts.id })
@@ -28,7 +29,7 @@ async function alertOnce(
     )
     .limit(1);
   if (existing) return false;
-  await db.insert(alerts).values({ kind, payload });
+  await db.insert(alerts).values({ kind, payload, spaceId: spaceId ?? null });
   return true;
 }
 
@@ -89,7 +90,7 @@ export async function GET(req: Request) {
               paypalOrderId: row.paypalOrderId,
               title: row.title,
               reason: `Order ${row.status} for ${Math.round(ageMs / 3600_000)}h — buyer never completed PayPal approval`,
-            })
+            }, row.spaceId)
           )
             summary.alerts++;
         }
@@ -112,7 +113,7 @@ export async function GET(req: Request) {
               paypalOrderId: row.paypalOrderId,
               title: row.title,
               reason: "PayPal authorization expired uncaptured — funds released back to buyer",
-            })
+            }, row.spaceId)
           )
             summary.alerts++;
         }
@@ -127,7 +128,7 @@ export async function GET(req: Request) {
             title: row.title,
             authorizationExpiresAt: row.authorizationExpiresAt,
             reason: `Authorization expires in ${Math.round((exp - now) / 3600_000)}h — capture before PayPal releases the hold`,
-          })
+          }, row.spaceId)
         )
           summary.alerts++;
       }

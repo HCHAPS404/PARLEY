@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Check,
   Globe,
+  Layers,
   Loader2,
   Lock,
   LogOut,
@@ -14,6 +15,8 @@ import {
   User,
 } from "lucide-react";
 import { usePrefs, type Theme } from "./preferences";
+import { SpaceDot, SPACE_COLORS, type SpaceInfo } from "./space-switcher";
+import type { I18nKey } from "@/lib/i18n";
 
 interface Policy {
   id: string;
@@ -37,6 +40,7 @@ export function SettingsInner({
   const { t, lang, setLang, theme, setTheme } = usePrefs();
   const router = useRouter();
   const [policy, setPolicy] = useState<Policy | null>(null);
+  const [spaceName, setSpaceName] = useState("");
   const [canEdit, setCanEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -56,6 +60,7 @@ export function SettingsInner({
         if (!d?.policy) return;
         setPolicy(d.policy);
         setCanEdit(d.canEdit);
+        if (d.spaceName) setSpaceName(d.spaceName);
         setForm({
           maxPerTx: toDollars(d.policy.maxPerTxCents),
           daily: toDollars(d.policy.dailyCapCents),
@@ -193,11 +198,21 @@ export function SettingsInner({
           </div>
         </Section>
 
+        <Section icon={<Layers className="h-4 w-4" />} title={t("space.settings")}>
+          <SpacesPanel t={t} />
+        </Section>
+
         <Section
           icon={<ShieldCheck className="h-4 w-4" />}
           title={t("settings.policy")}
         >
-          <p className="mb-4 text-[12px] text-ink-soft">{t("settings.policy.note")}</p>
+          <p className="mb-4 text-[12px] text-ink-soft">
+            {t("settings.policy.note")}{" "}
+            <span className="font-medium text-ink">
+              {t("space.policyScope")}
+              {spaceName ? ` (${spaceName})` : ""}
+            </span>
+          </p>
           {!canEdit && (
             <div className="mb-4 flex items-center gap-2 rounded-lg border border-warn/30 bg-warn-soft px-3 py-2 text-[12px] text-warn">
               <Lock className="h-3.5 w-3.5" />
@@ -257,6 +272,158 @@ export function SettingsInner({
             </button>
           </div>
         </Section>
+      </div>
+    </div>
+  );
+}
+
+function SpacesPanel({ t }: { t: (k: I18nKey) => string }) {
+  const router = useRouter();
+  const [spaces, setSpaces] = useState<SpaceInfo[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [newName, setNewName] = useState("");
+
+  const load = () =>
+    fetch("/api/spaces")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setSpaces(d.spaces);
+        setActiveId(d.activeId);
+      });
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const switchTo = async (id: string) => {
+    if (id === activeId) return;
+    await fetch("/api/spaces/active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setActiveId(id);
+    router.refresh();
+  };
+
+  const rename = async (id: string) => {
+    const name = editName.trim();
+    if (!name) return setEditId(null);
+    await fetch("/api/spaces", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name }),
+    });
+    setEditId(null);
+    load();
+  };
+
+  const recolor = async (id: string, color: string) => {
+    await fetch("/api/spaces", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, color }),
+    });
+    load();
+  };
+
+  const create = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    const r = await fetch("/api/spaces", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!r.ok) return;
+    const { space } = await r.json();
+    setNewName("");
+    await load();
+    await switchTo(space.id);
+  };
+
+  return (
+    <div>
+      <p className="mb-4 text-[12px] text-ink-soft">{t("space.settings.note")}</p>
+      <div className="space-y-2">
+        {spaces.map((s) => (
+          <div
+            key={s.id}
+            className="flex items-center gap-2.5 rounded-lg border border-line px-3 py-2.5"
+          >
+            <SpaceDot color={s.color} />
+            {editId === s.id ? (
+              <input
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") rename(s.id);
+                  if (e.key === "Escape") setEditId(null);
+                }}
+                onBlur={() => rename(s.id)}
+                maxLength={40}
+                className="min-w-0 flex-1 rounded border border-line bg-paper px-2 py-1 text-[13px] outline-none focus:border-accent"
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  setEditId(s.id);
+                  setEditName(s.name);
+                }}
+                className="min-w-0 flex-1 truncate text-left text-[13px] font-medium"
+                title={t("space.rename")}
+              >
+                {s.name}
+              </button>
+            )}
+            <div className="flex shrink-0 items-center gap-1">
+              {Object.entries(SPACE_COLORS).map(([key, hex]) => (
+                <button
+                  key={key}
+                  onClick={() => recolor(s.id, key)}
+                  className={`h-3.5 w-3.5 rounded-full transition-transform hover:scale-125 ${
+                    s.color === key ? "ring-2 ring-offset-1 ring-[var(--color-line)]" : ""
+                  }`}
+                  style={{ background: hex }}
+                  aria-label={`${t("space.color")} ${key}`}
+                />
+              ))}
+            </div>
+            {s.id === activeId ? (
+              <span className="shrink-0 rounded-full bg-accent-mist px-2 py-0.5 text-[10px] font-medium text-accent-strong">
+                {t("space.active")}
+              </span>
+            ) : (
+              <button
+                onClick={() => switchTo(s.id)}
+                className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[10px] font-medium text-ink-soft transition-colors hover:border-accent hover:text-accent-strong"
+              >
+                {t("space.switch")}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && create()}
+          placeholder={t("space.namePlaceholder")}
+          maxLength={40}
+          className="min-w-0 flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-[13px] outline-none placeholder:text-ink-soft/60 focus:border-accent"
+        />
+        <button
+          onClick={create}
+          disabled={!newName.trim()}
+          className="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-40"
+        >
+          {t("space.create")}
+        </button>
       </div>
     </div>
   );

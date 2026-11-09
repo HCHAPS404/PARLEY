@@ -18,15 +18,22 @@ export interface PolicyDecision {
 export async function checkPolicy(input: {
   amountCents: number;
   vendor?: string;
+  spaceId?: string;
 }): Promise<PolicyDecision> {
   await ensureDb();
   const db = getDb();
 
-  const [policy] = await db
-    .select()
-    .from(policies)
-    .where(eq(policies.id, "default"))
-    .limit(1);
+  // Per-space policy first; the 'default' template row is the fallback.
+  const spaceRows = input.spaceId
+    ? await db
+        .select()
+        .from(policies)
+        .where(eq(policies.spaceId, input.spaceId))
+        .limit(1)
+    : [];
+  const [policy] = spaceRows.length
+    ? spaceRows
+    : await db.select().from(policies).where(eq(policies.id, "default")).limit(1);
 
   const fail = (reason: string): PolicyDecision => ({
     allow: false,
@@ -52,12 +59,15 @@ export async function checkPolicy(input: {
     );
   }
 
+  // Spend caps count only orders in the same space — Client A's budget
+  // can never be consumed by Client B's purchases.
   const spendRes = (await db.execute(sql`
     select
       coalesce(sum(case when created_at >= date_trunc('day', now()) then amount_cents else 0 end), 0) as day_spend,
       coalesce(sum(case when created_at >= date_trunc('month', now()) then amount_cents else 0 end), 0) as month_spend
     from orders_local
     where status in ('authorized', 'captured', 'approved')
+      ${input.spaceId ? sql`and space_id = ${input.spaceId}` : sql``}
   `)) as unknown;
   // drizzle/postgres-js returns RowList (iterable); drizzle/pglite returns { rows }.
   const rows = Array.isArray(spendRes)

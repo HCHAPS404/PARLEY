@@ -30,10 +30,21 @@ export const sessions = pgTable("sessions", {
   userAgent: text("user_agent"),
 });
 
+/** Workspaces — a freelancer's clients or a shop's product lines. Each space
+ * owns its policy, orders, audit and chat history; vendor scores stay global. */
+export const spaces = pgTable("spaces", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("teal"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 /** Per-user chat history — durable trace of the conversation. */
 export const messages = pgTable("messages", {
   id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
   userId: text("user_id").notNull(),
+  spaceId: text("space_id"),
   role: text("role").notNull(), // user|assistant
   parts: jsonb("parts"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -52,6 +63,7 @@ export const productCache = pgTable("product_cache", {
 export const negotiations = pgTable("negotiations", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
+  spaceId: text("space_id"),
   productId: text("product_id").notNull(),
   listPriceCents: integer("list_price_cents").notNull(),
   agreedCents: integer("agreed_cents"),
@@ -64,6 +76,7 @@ export const negotiations = pgTable("negotiations", {
 /** Deterministic spending rules the agent can never override. */
 export const policies = pgTable("policies", {
   id: text("id").primaryKey(),
+  spaceId: text("space_id"), // owning space — null only for the 'default' template row
   name: text("name").notNull(),
   maxPerTxCents: integer("max_per_tx_cents").notNull(),
   dailyCapCents: integer("daily_cap_cents").notNull(),
@@ -78,6 +91,7 @@ export const policies = pgTable("policies", {
 export const ordersLocal = pgTable("orders_local", {
   id: text("id").primaryKey(), // ulid/uuid generated in code
   userId: text("user_id"), // owner — null only for pre-auth rows
+  spaceId: text("space_id"),
   paypalOrderId: text("paypal_order_id").notNull().unique(),
   authorizationId: text("authorization_id"),
   authorizationExpiresAt: timestamp("authorization_expires_at", { withTimezone: true }),
@@ -100,6 +114,7 @@ export const auditLog = pgTable("audit_log", {
   id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
   ts: timestamp("ts", { withTimezone: true }).notNull().defaultNow(),
   userId: text("user_id"), // whose action — null for system-level events
+  spaceId: text("space_id"),
   actor: text("actor").notNull(), // user|agent|merchant|system
   action: text("action").notNull(),
   input: jsonb("input"),
@@ -126,6 +141,7 @@ export const alerts = pgTable("alerts", {
   id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   kind: text("kind").notNull(), // duplicate_charge|price_hike|better_price|delivery_overdue
+  spaceId: text("space_id"),
   payload: jsonb("payload"),
   status: text("status").notNull().default("open"), // open|acted|dismissed
 });

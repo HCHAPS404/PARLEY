@@ -44,7 +44,7 @@ describe("agent tool surface", async () => {
   const { agentTools } = await import("../agent/tools");
 
   it("demo role gets ONLY the seven core tools — no merchant PayPal surface", () => {
-    const tools = agentTools({ userId: "u1", role: "demo" });
+    const tools = agentTools({ userId: "u1", role: "demo", spaceId: "sp_test" });
     expect(Object.keys(tools).sort()).toEqual([
       "confirm_delivery_release",
       "create_escrow_order",
@@ -57,7 +57,7 @@ describe("agent tool surface", async () => {
   });
 
   it("money-moving tools accept no price or amount input — prices resolve server-side only", () => {
-    const tools = agentTools({ userId: "u1", role: "demo" });
+    const tools = agentTools({ userId: "u1", role: "demo", spaceId: "sp_test" });
     const moneyTools = [
       "create_escrow_order",
       "confirm_delivery_release",
@@ -74,7 +74,7 @@ describe("agent tool surface", async () => {
   });
 
   it("demo role cannot invoke any tool that is missing from the safe list", () => {
-    const tools = agentTools({ userId: "u1", role: "demo" });
+    const tools = agentTools({ userId: "u1", role: "demo", spaceId: "sp_test" });
     const forbidden = [
       "create_invoice",
       "send_invoice",

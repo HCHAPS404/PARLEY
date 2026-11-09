@@ -12,6 +12,7 @@ export async function audit(entry: {
   actor: Actor;
   action: string;
   userId?: string;
+  spaceId?: string;
   input?: unknown;
   output?: unknown;
   rationale?: string;
@@ -26,6 +27,7 @@ export async function audit(entry: {
       .values({
         actor: entry.actor,
         userId: entry.userId ?? null,
+        spaceId: entry.spaceId ?? null,
         action: entry.action,
         input: entry.input == null ? null : JSON.parse(JSON.stringify(entry.input)),
         output:

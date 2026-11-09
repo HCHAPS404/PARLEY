@@ -1,8 +1,9 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
 import { ordersLocal } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { getActiveSpace } from "@/lib/spaces";
 
 /**
  * Escrow orders as Gantt tasks: each order is a parent task whose phases map
@@ -15,10 +16,11 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureDb();
   const db = getDb();
+  const space = await getActiveSpace(user.id);
   const orders = await db
     .select()
     .from(ordersLocal)
-    .where(eq(ordersLocal.userId, user.id))
+    .where(and(eq(ordersLocal.userId, user.id), eq(ordersLocal.spaceId, space.id)))
     .orderBy(desc(ordersLocal.createdAt))
     .limit(100);
 
