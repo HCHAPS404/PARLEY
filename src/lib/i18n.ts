@@ -16,6 +16,7 @@ const en = {
   "inbox.empty": "All clear — nothing needs you",
   "inbox.emptySub": "Deliveries, reorder approvals, and escrow decisions land here.",
   "inbox.release": "Release escrow",
+  "inbox.issueInvoice": "Issue invoice",
   "inbox.approvePaypal": "Approve on PayPal",
   "inbox.dismiss": "Dismiss",
 
@@ -150,10 +151,10 @@ const en = {
   "land.nav.getStarted": "Get started",
   "land.nav.openApp": "Open app",
 
-  "land.hero.kicker": "Agentic procurement · PayPal AI Hackathon",
-  "land.hero.title": "Procurement that negotiates. Payment that waits.",
+  "land.hero.kicker": "Agent-to-agent commerce · PayPal AI Hackathon",
+  "land.hero.title": "Two agents. One marketplace. Money that waits.",
   "land.hero.sub":
-    "Parley is the procurement department solopreneurs can't afford: an AI agent that finds real products, haggles with merchant agents, and pays through PayPal escrow — your money only moves when the goods arrive.",
+    "Parley is a two-sided agentic marketplace: buyers get an AI procurement agent that finds real products and haggles, sellers deploy their own merchant agent that negotiates back — deals close agent-to-agent over MCP, and PayPal escrow only releases when the goods arrive.",
   "land.hero.cta": "Start procuring",
   "land.hero.ctaSecondary": "See how it works",
   "land.hero.escrowCaption": "Live escrow lifecycle — authorize, hold, release",
@@ -226,7 +227,7 @@ const en = {
     "Searches a live catalog of 100M+ real products via Channel3 — prices, merchants and offers, ranked by learned vendor reputation.",
   "land.how.negotiate.t": "Negotiate",
   "land.how.negotiate.d":
-    "Agent-to-agent bargaining with the merchant's agent — up to 4 rounds. Accepts, counters, or walks away, and the transcript is yours.",
+    "Your agent bargains with the seller's own merchant agent — a real LLM counterparty served over MCP, up to 4 rounds. It accepts, counters, or walks; the transcript is yours.",
   "land.how.escrow.t": "Escrow",
   "land.how.escrow.d":
     "Creates a PayPal AUTHORIZE order — funds held, never captured. You approve on PayPal; the agent never touches credentials.",
@@ -294,6 +295,7 @@ const es: Record<I18nKey, string> = {
   "inbox.empty": "Todo en orden — nada te necesita",
   "inbox.emptySub": "Entregas, aprobaciones de reorden y decisiones de escrow llegan aquí.",
   "inbox.release": "Liberar escrow",
+  "inbox.issueInvoice": "Emitir factura",
   "inbox.approvePaypal": "Aprobar en PayPal",
   "inbox.dismiss": "Descartar",
 
@@ -428,10 +430,10 @@ const es: Record<I18nKey, string> = {
   "land.nav.getStarted": "Crear cuenta",
   "land.nav.openApp": "Abrir la app",
 
-  "land.hero.kicker": "Procurement agéntico · PayPal AI Hackathon",
-  "land.hero.title": "Procurement que negocia. Dinero que espera.",
+  "land.hero.kicker": "Comercio agente-a-agente · PayPal AI Hackathon",
+  "land.hero.title": "Dos agentes. Un mercado. Dinero que espera.",
   "land.hero.sub":
-    "Parley es el departamento de compras que un solopreneur no puede pagar: un agente de IA que encuentra productos reales, regatea con agentes vendedores y paga por escrow en PayPal — tu dinero solo se mueve cuando llega la mercancía.",
+    "Parley es un mercado agéntico de dos lados: el comprador obtiene un agente de procurement que encuentra productos reales y regatea, el vendedor despliega su propio agente mercader que negocia de vuelta — los tratos se cierran agente-a-agente sobre MCP, y el escrow de PayPal solo libera cuando llega la mercancía.",
   "land.hero.cta": "Empezar a comprar",
   "land.hero.ctaSecondary": "Ver cómo funciona",
   "land.hero.escrowCaption": "Ciclo de escrow en vivo — autoriza, retiene, libera",
@@ -504,7 +506,7 @@ const es: Record<I18nKey, string> = {
     "Busca en un catálogo vivo de más de 100M productos reales vía Channel3 — precios, vendedores y ofertas, ordenados por reputación aprendida.",
   "land.how.negotiate.t": "Negocia",
   "land.how.negotiate.d":
-    "Regateo agente-a-agente con el agente del vendedor — hasta 4 rondas. Acepta, contraoferta o se retira, y la transcripción es tuya.",
+    "Tu agente regatea con el agente mercader del vendedor — una contraparte LLM real servida sobre MCP, hasta 4 rondas. Acepta, contraoferta o se retira, y la transcripción es tuya.",
   "land.how.escrow.t": "Escrow",
   "land.how.escrow.d":
     "Crea una orden PayPal tipo AUTHORIZE — fondos retenidos, nunca cobrados. Tú apruebas en PayPal; el agente jamás toca credenciales.",

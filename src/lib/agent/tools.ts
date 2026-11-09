@@ -329,16 +329,12 @@ export function agentTools(ctx: AgentCtx) {
             .limit(1);
           buyerEmail = me?.email;
         }
-        const resp = env.mcpSecret
-          ? await callMerchantOverMcp({
-              ...roundArgs,
-              merchantId: sellerProfile?.id,
-              buyerLabel: `parley-user-${ctx.userId.slice(0, 8)}`,
-              buyerEmail,
-            }).catch(
-              () => merchantAgentRound(roundArgs),
-            )
-          : await merchantAgentRound(roundArgs);
+        const resp = await negotiate({
+          ...roundArgs,
+          merchantId: sellerProfile?.id,
+          buyerLabel: `parley-user-${ctx.userId.slice(0, 8)}`,
+          buyerEmail,
+        });
         session.transcript.push({ speaker: "merchant", text: resp.message });
         if (resp.action === "accept") {
           session.status = "agreed";
@@ -721,18 +717,10 @@ export function agentTools(ctx: AgentCtx) {
         const offerCents = toCents(offerUsd);
         const quotes = await Promise.all(
           vendors.map(async (v) => {
-            const resp = env.mcpSecret
-              ? await callMerchantOverMcp({
-                  productId, productTitle: product.title,
-                  listPriceCents: v.priceCents, offerCents, roundsUsed: 1,
-                }).catch(() => merchantAgentRound({
-                  productId, productTitle: product.title,
-                  listPriceCents: v.priceCents, offerCents, roundsUsed: 1,
-                }))
-              : await merchantAgentRound({
-                  productId, productTitle: product.title,
-                  listPriceCents: v.priceCents, offerCents, roundsUsed: 1,
-                });
+            const resp = await negotiate({
+              productId, productTitle: product.title,
+              listPriceCents: v.priceCents, offerCents, roundsUsed: 1,
+            });
             return { vendor: v.domain, listUsd: usd(v.priceCents), action: resp.action, quoteUsd: usd(resp.priceCents), quoteCents: resp.priceCents, message: resp.message };
           }),
         );
@@ -1029,6 +1017,26 @@ async function sellerProfileFor(productId: string) {
     .where(eq(merchantProfiles.userId, sp.userId))
     .limit(1);
   return p ?? null;
+}
+
+/**
+ * One place owns the A2A transport: MCP-over-HTTP when the secret is set,
+ * in-process agent otherwise — with fallback either way.
+ */
+async function negotiate(
+  args: Parameters<typeof merchantAgentRound>[0] & {
+    merchantId?: string;
+    buyerLabel?: string;
+    buyerEmail?: string;
+  },
+) {
+  const { merchantId, buyerLabel, buyerEmail, ...round } = args;
+  if (!env.mcpSecret) return merchantAgentRound(round);
+  try {
+    return await callMerchantOverMcp({ ...round, merchantId, buyerLabel, buyerEmail });
+  } catch {
+    return merchantAgentRound(round);
+  }
 }
 
 /** JSON-RPC call to the merchant agent service — the literal A2A boundary. */

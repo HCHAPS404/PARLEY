@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { merchantAgentRound } from "@/lib/agent/merchant";
 import { paypalTools } from "@/lib/paypal-toolkit";
-import { sql } from "drizzle-orm";
 import { env } from "@/lib/env";
 import { ensureDb, getDb } from "@/lib/db";
+import { rateLimit } from "@/lib/rate-limit";
 import { alerts, merchantProfiles, merchantSales, spaces } from "@/lib/db/schema";
 
 export const maxDuration = 60;
@@ -54,6 +54,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "MCP_SECRET not configured" }, { status: 503 });
   if (req.headers.get("authorization") !== `Bearer ${env.mcpSecret}`)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  if (!rateLimit(`mcp:${ip}`, 120, 3600_000).ok)
+    return NextResponse.json({ error: "Rate limited" }, { status: 429 });
 
   let body: { jsonrpc?: string; id?: unknown; method?: string; params?: { name?: string; arguments?: Record<string, unknown> } };
   try {
@@ -108,8 +111,9 @@ export async function POST(req: Request) {
       // A closed deal is the seller's revenue — record it on their ledger.
       if (resp.action === "accept" && profile) {
         const db = getDb();
+        const saleId = crypto.randomUUID();
         await db.insert(merchantSales).values({
-          id: crypto.randomUUID(),
+          id: saleId,
           sellerUserId: profile.userId,
           productTitle: String(args?.productTitle ?? "Product"),
           agreedCents: resp.priceCents,
@@ -137,7 +141,7 @@ export async function POST(req: Request) {
             })) as { id?: string } | undefined;
             if (created?.id) {
               await tools["send_invoice"]?.execute?.({ invoice_id: created.id });
-              await db.execute(sql`update merchant_sales set status = 'invoiced' where seller_user_id = ${profile.userId} and buyer_order_id is null order by created_at desc limit 1`);
+              await db.update(merchantSales).set({ status: "invoiced" }).where(eq(merchantSales.id, saleId));
               invoiced = true;
             }
           } catch { /* invoicing is best-effort — the sale stands */ }
@@ -146,6 +150,7 @@ export async function POST(req: Request) {
           kind: "sale_closed",
           spaceId: sellerSpace?.id ?? null,
           payload: {
+            saleId,
             title: `Your agent sold "${String(args?.productTitle ?? "item").slice(0, 80)}"`,
             priceUsd: resp.priceCents / 100,
             reason: `Closed by ${profile.displayName} at $${(resp.priceCents / 100).toFixed(2)}${invoiced ? " — invoice sent to the buyer" : " — issue the invoice to get paid"}`,

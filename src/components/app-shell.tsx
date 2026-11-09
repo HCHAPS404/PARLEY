@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -44,6 +44,17 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [inboxCount, setInboxCount] = useState(0);
+  useEffect(() => {
+    const load = () =>
+      fetch("/api/alerts")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d && setInboxCount(d.alerts?.length ?? 0))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, []);
   const { t, lang, setLang, theme, setTheme } = usePrefs();
 
   const logout = async () => {
@@ -87,6 +98,11 @@ export function AppShell({
               >
                 <Icon className="h-4 w-4" />
                 {t(key)}
+                {key === "nav.inbox" && inboxCount > 0 && (
+                  <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-paper">
+                    {inboxCount}
+                  </span>
+                )}
               </Link>
             );
           })}

@@ -217,6 +217,7 @@ export function ensureDb(): Promise<void> {
       }
       await seedAdmin(db);
       await backfillSpaces(db);
+      await seedDemoSeller(db);
     } catch (e) {
       g.__parleyBoot = undefined; // allow retry instead of caching a rejection forever
       throw e;
@@ -247,6 +248,30 @@ async function seedAdmin(db: Db) {
  * template. Pre-spaces rows (orders/messages/audit/negotiations) are assigned
  * to that space so nothing floats unscoped.
  */
+/**
+ * Seed seller "Acme Supply Co." — a synthetic merchant (no login) so every
+ * deployment ships with a real counterparty on the A2A marketplace. Buyers
+ * find its products in search and negotiate with its agent over /api/mcp.
+ */
+async function seedDemoSeller(db: Db) {
+  await db.execute(sql`
+    insert into merchant_profiles (id, user_id, display_name, floor_ratio_pct, style)
+    select 'merch_acme', 'seed_seller', 'Acme Supply Co.', 82, 'balanced'
+    where not exists (select 1 from merchant_profiles where id = 'merch_acme')`);
+  await db.execute(sql`
+    insert into seller_products (id, user_id, title, price_cents, stock)
+    select 'sp_acme_boxes', 'seed_seller', 'Kraft shipping boxes 50-pack', 2400, 40
+    where not exists (select 1 from seller_products where id = 'sp_acme_boxes')`);
+  await db.execute(sql`
+    insert into seller_products (id, user_id, title, price_cents, stock)
+    select 'sp_acme_tape', 'seed_seller', 'Heavy-duty packing tape 6-pack', 1150, 60
+    where not exists (select 1 from seller_products where id = 'sp_acme_tape')`);
+  await db.execute(sql`
+    insert into seller_products (id, user_id, title, price_cents, stock)
+    select 'sp_acme_labels', 'seed_seller', 'Thermal shipping labels 500-roll', 1890, 25
+    where not exists (select 1 from seller_products where id = 'sp_acme_labels')`);
+}
+
 async function backfillSpaces(db: Db) {
   const res = (await db.execute(sql`select id from users`)) as unknown;
   const userRows = (Array.isArray(res) ? res : (res as { rows?: { id: string }[] })?.rows ?? []) as { id: string }[];

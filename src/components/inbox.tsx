@@ -120,6 +120,15 @@ export function InboxPanel({ role }: { role: string }) {
                   {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("inbox.release")}
                 </button>
               )}
+              {a.kind === "sale_closed" && role === "admin" && typeof p.saleId === "string" && (
+                <button
+                  onClick={() => act(a.id, "issueInvoice")}
+                  disabled={busy === a.id}
+                  className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50"
+                >
+                  {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("inbox.issueInvoice")}
+                </button>
+              )}
               {a.kind === "reorder_created" && (
                 <button
                   onClick={() => act(a.id, "approveReorder")}

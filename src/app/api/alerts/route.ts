@@ -1,10 +1,11 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, like } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
-import { alerts, ordersLocal } from "@/lib/db/schema";
+import { alerts, merchantSales, ordersLocal, users } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { getActiveSpace } from "@/lib/spaces";
 import { captureAuthorization } from "@/lib/paypal";
+import { paypalTools } from "@/lib/paypal-toolkit";
 import { audit } from "@/lib/audit";
 
 export const maxDuration = 60;
@@ -82,6 +83,48 @@ export async function POST(req: Request) {
       rationale: "Reorder rule output approved — buyer completes on PayPal",
     });
     return NextResponse.json({ ok: true, approveUrl: payload.approveUrl ?? null });
+  }
+
+  if (action === "issueInvoice") {
+    if (user.role !== "admin")
+      return NextResponse.json({ error: "Only admin issues invoices" }, { status: 403 });
+    const [sale] = await db
+      .select()
+      .from(merchantSales)
+      .where(eq(merchantSales.id, String(payload.saleId ?? "")))
+      .limit(1);
+    if (!sale || sale.sellerUserId !== user.id)
+      return NextResponse.json({ error: "Sale not found" }, { status: 404 });
+    if (sale.status === "invoiced")
+      return NextResponse.json({ error: "Already invoiced" }, { status: 409 });
+    // buyer label "parley-user-<8>" → resolve the buyer's billing email
+    const m = /^parley-user-([a-f0-9]{8})/.exec(sale.buyerLabel ?? "");
+    const [buyer] = m
+      ? await db.select({ email: users.email }).from(users).where(like(users.id, `${m[1]}%`)).limit(1)
+      : [null];
+    if (!buyer?.email)
+      return NextResponse.json({ error: "Buyer billing email not on record" }, { status: 400 });
+    const tools = paypalTools() as Record<string, { execute?: (a: unknown) => Promise<unknown> }>;
+    const value = (sale.agreedCents / 100).toFixed(2);
+    const created = (await tools["create_invoice"]?.execute?.({
+      detail: { currency_code: "USD", note: "Parley A2A sale", payment_term: { term_type: "DUE_ON_RECEIPT" } },
+      primary_recipients: [{ billing_info: { email_address: buyer.email } }],
+      items: [{ name: sale.productTitle.slice(0, 127), quantity: "1", unit_amount: { currency_code: "USD", value } }],
+      amount: { breakdown: { item_total: { currency_code: "USD", value } } },
+    })) as { id?: string } | undefined;
+    if (!created?.id)
+      return NextResponse.json({ error: "Invoice creation failed" }, { status: 502 });
+    await tools["send_invoice"]?.execute?.({ invoice_id: created.id });
+    await db.update(merchantSales).set({ status: "invoiced" }).where(eq(merchantSales.id, sale.id));
+    await db.update(alerts).set({ status: "acted" }).where(eq(alerts.id, alertId));
+    await audit({
+      actor: "user", action: "sale_invoiced_inbox",
+      userId: user.id, spaceId: space.id,
+      input: { alertId, saleId: sale.id },
+      output: { invoiceId: created.id },
+      rationale: "Seller issued the invoice from the approval inbox",
+    });
+    return NextResponse.json({ ok: true, invoiceId: created.id });
   }
 
   if (action === "dismiss") {
