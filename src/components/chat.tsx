@@ -630,9 +630,14 @@ function ProductGrid({ products }: { products: ProductCard[] }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {products.slice(0, 6).map((p) => (
-        <div
+        <a
           key={p.id}
-          className="group flex flex-col overflow-hidden rounded-xl border border-line bg-card transition-all hover:border-accent/50 hover:shadow-md"
+          href={p.buyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`group flex flex-col overflow-hidden rounded-xl border border-line bg-card transition-all hover:border-accent/50 hover:shadow-md ${
+            p.buyUrl ? "cursor-pointer" : "cursor-default"
+          }`}
         >
           <div className="relative h-36 shrink-0 overflow-hidden bg-white">
             <ProductImage src={p.image} alt={p.title} />
@@ -651,9 +656,14 @@ function ProductGrid({ products }: { products: ProductCard[] }) {
                 <div className="font-display text-[15px] font-semibold text-ink">
                   {usd(p.bestPriceCents, p.currency)}
                 </div>
-                <div className="truncate text-[11px] text-ink-soft">
-                  {p.merchant}
-                  {p.brand ? ` · ${p.brand}` : ""}
+                <div className="flex items-center gap-1 truncate text-[11px] text-ink-soft">
+                  <span className="truncate">
+                    {p.merchant}
+                    {p.brand ? ` · ${p.brand}` : ""}
+                  </span>
+                  {p.buyUrl && (
+                    <ExternalLink className="h-3 w-3 shrink-0 text-ink-soft/50 transition-colors group-hover:text-accent" />
+                  )}
                 </div>
               </div>
               {p.vendorScore != null && (
@@ -672,7 +682,7 @@ function ProductGrid({ products }: { products: ProductCard[] }) {
               )}
             </div>
           </div>
-        </div>
+        </a>
       ))}
     </div>
   );
