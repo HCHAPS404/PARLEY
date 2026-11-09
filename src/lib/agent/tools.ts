@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { eq, desc, and, gt, sql } from "drizzle-orm";
+import { eq, desc, and, gt, sql, inArray } from "drizzle-orm";
 import { searchProducts, type ProductCard } from "../channel3";
 import {
   createEscrowOrder,
@@ -94,10 +94,16 @@ async function withVendorScores(
 ) {
   const merchants = [...new Set(products.map((p) => p.merchant).filter(Boolean))] as string[];
   if (!merchants.length) return products;
-  const scores = await db
-    .select()
-    .from(vendorScores)
-    .where(sql`${vendorScores.domain} = any(${merchants})`);
+  // Reputation enriches results — it must never kill the search itself.
+  let scores: { domain: string; score: number }[];
+  try {
+    scores = await db
+      .select({ domain: vendorScores.domain, score: vendorScores.score })
+      .from(vendorScores)
+      .where(inArray(vendorScores.domain, merchants));
+  } catch {
+    return products;
+  }
   const byDomain = new Map(scores.map((s) => [s.domain, s.score]));
   return products
     .map((p) => ({ ...p, vendorScore: p.merchant ? (byDomain.get(p.merchant) ?? null) : null }))

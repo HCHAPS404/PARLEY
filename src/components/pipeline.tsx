@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, PackageCheck, PackageX, Truck, CheckCircle2, Circle } from "lucide-react";
+import { Loader2, PackageCheck, PackageX, Truck } from "lucide-react";
 import { usePrefs } from "./preferences";
 
 interface Order {
@@ -12,41 +12,34 @@ interface Order {
   amountCents: number;
   capturedCents: number;
   status: string;
-  stage: number; // 0..4, -1 = voided/cancelled/failed
+  stage: number;
   overdue: boolean;
   expectedDelivery: string;
   createdAt: string | null;
-  deliveredAt: string | null;
   trackingNumber: string | null;
   carrier: string | null;
 }
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
-const STEPS = ["created", "approved", "authorized", "delivered", "captured"] as const;
 
-const STATUS_TONE: Record<string, string> = {
-  captured: "bg-ok/15 text-ok",
-  delivered: "bg-ok/15 text-ok",
-  authorized: "bg-accent/15 text-accent",
-  approved: "bg-accent/15 text-accent",
-  created: "bg-ink-soft/15 text-ink-soft",
-  voided: "bg-danger/15 text-danger",
-  cancelled: "bg-danger/15 text-danger",
-  failed: "bg-danger/15 text-danger",
-};
+/** Kanban columns: where each escrow sits in its lifecycle. */
+const COLS = [
+  { key: "escrow", match: (o: Order) => o.stage >= 0 && o.stage < 3, tone: "text-accent", dot: "bg-accent" },
+  { key: "delivered", match: (o: Order) => o.status === "delivered", tone: "text-ok", dot: "bg-ok" },
+  { key: "released", match: (o: Order) => o.status === "captured", tone: "text-ok", dot: "bg-ok" },
+  { key: "closed", match: (o: Order) => o.stage === -1, tone: "text-ink-soft", dot: "bg-ink-soft/50" },
+] as const;
 
-/** Order pipeline — every escrow as a readable lifecycle card. */
 export function Pipeline({ role }: { role: string }) {
   const { t } = usePrefs();
   const [orders, setOrders] = useState<Order[] | null>(null);
 
-  const load = () =>
-    fetch("/api/pipeline-data")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setOrders(d.orders ?? []))
-      .catch(() => setOrders([]));
-
   useEffect(() => {
+    const load = () =>
+      fetch("/api/pipeline-data")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d && setOrders(d.orders ?? []))
+        .catch(() => setOrders([]));
     load();
     const id = setInterval(load, 30_000);
     return () => clearInterval(id);
@@ -61,91 +54,76 @@ export function Pipeline({ role }: { role: string }) {
 
   if (orders.length === 0)
     return (
-      <div className="m-6 rounded-xl border border-line bg-card p-10 text-center">
-        <PackageCheck className="mx-auto h-8 w-8 text-ok" />
-        <p className="mt-3 font-medium">{t("pipe.empty")}</p>
-        <p className="mt-1 text-xs text-ink-soft">{t("pipe.emptySub")}</p>
+      <div className="grid h-full place-items-center p-10 text-center">
+        <div>
+          <PackageCheck className="mx-auto h-8 w-8 text-ok" />
+          <p className="mt-3 font-medium">{t("pipe.empty")}</p>
+          <p className="mt-1 text-xs text-ink-soft">{t("pipe.emptySub")}</p>
+        </div>
       </div>
     );
 
   return (
-    <div className="space-y-3 p-6">
-      {orders.map((o) => {
-        const terminal = o.stage === -1;
-        const releaseReady = o.status === "delivered" && role === "admin";
+    <div className="grid h-full grid-cols-4 divide-x divide-line overflow-x-auto">
+      {COLS.map((col) => {
+        const items = orders.filter(col.match);
         return (
-          <div
-            key={o.id}
-            className={`rounded-xl border bg-card p-4 ${
-              o.overdue ? "border-danger/50" : "border-line"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{o.title}</div>
-                <div className="mt-0.5 text-[11px] text-ink-soft">
-                  {o.vendor ?? "vendor"} · {o.createdAt ? new Date(o.createdAt).toLocaleDateString() : ""}
-                  {o.trackingNumber && (
-                    <> · <Truck className="mb-0.5 inline h-3 w-3" /> {o.carrier} {o.trackingNumber}</>
-                  )}
-                </div>
-              </div>
-              <div className="shrink-0 text-right">
-                <div className="text-sm font-semibold">{usd(o.amountCents)}</div>
-                {o.capturedCents > 0 && o.capturedCents < o.amountCents && (
-                  <div className="text-[11px] text-ok">{usd(o.capturedCents)} {t("pipe.partial")}</div>
-                )}
-                <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${STATUS_TONE[o.status] ?? STATUS_TONE.created}`}>
-                  {o.overdue ? `${o.status} · ${t("pipe.overdue")}` : o.status}
-                </span>
-              </div>
-            </div>
-
-            {/* Lifecycle stepper */}
-            <div className="mt-3 flex items-center">
-              {terminal ? (
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-danger">
-                  <PackageX className="h-3.5 w-3.5" /> {o.status} — {t("pipe.terminal")}
-                </div>
-              ) : (
-                STEPS.map((s, i) => (
-                  <div key={s} className="flex flex-1 items-center last:flex-none">
-                    <div className="flex flex-col items-center gap-1">
-                      {i < o.stage ? (
-                        <CheckCircle2 className="h-4 w-4 text-ok" />
-                      ) : i === o.stage ? (
-                        <CheckCircle2 className={`h-4 w-4 ${o.overdue ? "text-danger" : "text-accent"}`} />
-                      ) : (
-                        <Circle className="h-4 w-4 text-line" />
-                      )}
-                      <span className={`text-[9px] uppercase tracking-wide ${i <= o.stage ? "text-ink" : "text-ink-soft/60"}`}>
-                        {t(`pipe.st.${s}`)}
+          <section key={col.key} className="flex min-w-[240px] flex-col">
+            <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+              <span className={`h-1.5 w-1.5 rounded-full ${col.dot}`} />
+              <h2 className={`text-[11px] font-semibold uppercase tracking-wide ${col.tone}`}>
+                {t(`pipe.col.${col.key}`)}
+              </h2>
+              <span className="ml-auto rounded-full bg-paper px-1.5 py-0.5 text-[10px] font-medium text-ink-soft">
+                {items.length}
+              </span>
+            </header>
+            <div className="flex-1 space-y-2 overflow-y-auto p-3">
+              {items.map((o) => (
+                <article
+                  key={o.id}
+                  className={`rounded-lg border bg-card p-3 transition-colors ${
+                    o.overdue ? "border-danger/50" : "border-line hover:border-ink-soft/40"
+                  }`}
+                >
+                  <div className="line-clamp-2 text-[13px] font-medium leading-snug">{o.title}</div>
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-ink-soft">
+                    <span className="truncate">{o.vendor ?? "—"}</span>
+                    <span className="ml-2 shrink-0 font-semibold text-ink">{usd(o.amountCents)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-[10px] uppercase tracking-wide text-ink-soft">{o.status}</span>
+                    {o.overdue && (
+                      <span className="rounded-full bg-danger/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-danger">
+                        {t("pipe.overdue")}
                       </span>
-                    </div>
-                    {i < STEPS.length - 1 && (
-                      <div className={`mx-1 mb-4 h-px flex-1 ${i < o.stage ? "bg-ok" : "bg-line"}`} />
                     )}
                   </div>
-                ))
+                  {o.trackingNumber && (
+                    <div className="mt-1.5 flex items-center gap-1 text-[10px] text-ink-soft">
+                      <Truck className="h-3 w-3" /> {o.carrier} · {o.trackingNumber}
+                    </div>
+                  )}
+                  {o.status === "delivered" && role === "admin" && (
+                    <Link
+                      href="/inbox"
+                      className="mt-2 flex items-center justify-center gap-1.5 rounded-md bg-accent px-2 py-1.5 text-[11px] font-medium text-white hover:bg-accent-strong"
+                    >
+                      <PackageCheck className="h-3 w-3" /> {t("pipe.release")}
+                    </Link>
+                  )}
+                  {o.stage === -1 && (
+                    <div className="mt-1.5 flex items-center gap-1 text-[10px] text-danger">
+                      <PackageX className="h-3 w-3" /> {t("pipe.terminal")}
+                    </div>
+                  )}
+                </article>
+              ))}
+              {items.length === 0 && (
+                <p className="px-1 pt-2 text-[11px] text-ink-soft/60">—</p>
               )}
             </div>
-
-            {releaseReady && (
-              <div className="mt-3 border-t border-line pt-3">
-                <Link
-                  href="/inbox"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-strong"
-                >
-                  <PackageCheck className="h-3.5 w-3.5" /> {t("pipe.release")}
-                </Link>
-              </div>
-            )}
-            {o.overdue && !terminal && (
-              <div className="mt-2 text-[11px] text-danger">
-                {t("pipe.lateNote")} {new Date(o.expectedDelivery).toLocaleDateString()}
-              </div>
-            )}
-          </div>
+          </section>
         );
       })}
     </div>
