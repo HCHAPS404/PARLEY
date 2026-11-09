@@ -6,6 +6,7 @@ import {
   Check,
   Globe,
   Layers,
+  Store,
   Loader2,
   Lock,
   LogOut,
@@ -200,6 +201,10 @@ export function SettingsInner({
 
         <Section icon={<Layers className="h-4 w-4" />} title={t("space.settings")}>
           <SpacesPanel t={t} />
+        </Section>
+
+        <Section icon={<Store className="h-4 w-4" />} title={t("sell.settings")}>
+          <SellPanel t={t} />
         </Section>
 
         <Section
@@ -425,6 +430,121 @@ function SpacesPanel({ t }: { t: (k: I18nKey) => string }) {
           {t("space.create")}
         </button>
       </div>
+    </div>
+  );
+}
+
+function SellPanel({ t }: { t: (k: I18nKey) => string }) {
+  const [profile, setProfile] = useState<{ id: string; displayName: string; floorRatioPct: number; style: string } | null>(null);
+  const [products, setProducts] = useState<{ id: string; title: string; priceCents: number; stock: number }[]>([]);
+  const [salesCount, setSalesCount] = useState(0);
+  const [name, setName] = useState("");
+  const [floor, setFloor] = useState("85");
+  const [style, setStyle] = useState("balanced");
+  const [pTitle, setPTitle] = useState("");
+  const [pPrice, setPPrice] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = () =>
+    fetch("/api/seller")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setProfile(d.profile);
+        setProducts(d.products);
+        setSalesCount(d.sales.length);
+        if (d.profile) {
+          setName(d.profile.displayName);
+          setFloor(String(d.profile.floorRatioPct));
+          setStyle(d.profile.style);
+        }
+      });
+  useEffect(() => { load(); }, []);
+
+  const post = async (body: Record<string, unknown>) => {
+    setBusy(true);
+    await fetch("/api/seller", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusy(false);
+    load();
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-[12px] text-ink-soft">{t("sell.note")}</p>
+      <div className="grid grid-cols-3 gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t("sell.name")}
+          className="rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
+        />
+        <input
+          value={floor}
+          onChange={(e) => setFloor(e.target.value)}
+          type="number" min={50} max={95}
+          title={t("sell.floor")}
+          className="rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
+        />
+        <select
+          value={style}
+          onChange={(e) => setStyle(e.target.value)}
+          className="rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
+        >
+          <option value="aggressive">{t("sell.aggressive")}</option>
+          <option value="balanced">{t("sell.balanced")}</option>
+          <option value="conservative">{t("sell.conservative")}</option>
+        </select>
+      </div>
+      <button
+        onClick={() => post({ action: "profile", displayName: name, floorRatioPct: Number(floor), style })}
+        disabled={busy || !name.trim()}
+        className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white hover:bg-accent-strong disabled:opacity-50"
+      >
+        {profile ? t("sell.update") : t("sell.deploy")}
+      </button>
+      {profile && (
+        <>
+          <div className="flex items-center justify-between border-t border-line/60 pt-3 text-[12px]">
+            <span className="text-ink-soft">{t("sell.catalog")}</span>
+            <span className="font-medium text-accent">{salesCount} {t("sell.sales")}</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={pTitle}
+              onChange={(e) => setPTitle(e.target.value)}
+              placeholder={t("sell.productName")}
+              className="flex-1 rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
+            />
+            <input
+              value={pPrice}
+              onChange={(e) => setPPrice(e.target.value)}
+              type="number" min={1} step="0.01" placeholder="$"
+              className="w-20 rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
+            />
+            <button
+              onClick={() => { post({ action: "addProduct", title: pTitle, priceUsd: Number(pPrice) }); setPTitle(""); setPPrice(""); }}
+              disabled={busy || !pTitle.trim() || !pPrice}
+              className="rounded-md border border-line px-3 py-1.5 text-[12px] font-medium hover:text-ink disabled:opacity-50"
+            >
+              {t("sell.add")}
+            </button>
+          </div>
+          {products.length > 0 && (
+            <ul className="space-y-1.5">
+              {products.map((p) => (
+                <li key={p.id} className="flex items-center justify-between rounded-md border border-line bg-paper px-3 py-1.5 text-[12px]">
+                  <span className="truncate">{p.title}</span>
+                  <span className="ml-3 shrink-0 font-medium">${(p.priceCents / 100).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   );
 }

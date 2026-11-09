@@ -18,6 +18,8 @@ import {
   productCache as productCacheTable,
   negotiations as negotiationsTable,
   reorderRules,
+  sellerProducts,
+  merchantProfiles,
 } from "../db/schema";
 import { merchantAgentRound } from "./merchant";
 import { rateLimit } from "../rate-limit";
@@ -223,6 +225,33 @@ export function agentTools(ctx: AgentCtx) {
           limit,
         });
         await ensureDb();
+        // Parley market: items listed by other users' merchant agents join the
+        // catalog as vendors — buying from them negotiates with a real agent.
+        if (query) {
+          const db = getDb();
+          const mine = await db
+            .select({
+              id: sellerProducts.id,
+              title: sellerProducts.title,
+              priceCents: sellerProducts.priceCents,
+              currency: sellerProducts.currency,
+              sellerName: merchantProfiles.displayName,
+              sellerUserId: sellerProducts.userId,
+            })
+            .from(sellerProducts)
+            .innerJoin(merchantProfiles, eq(merchantProfiles.userId, sellerProducts.userId))
+            .where(sql`${sellerProducts.title} ilike ${"%" + query.slice(0, 60) + "%"}`)
+            .limit(3);
+          for (const m of mine) {
+            if (m.sellerUserId === ctx.userId) continue; // don't sell to yourself
+            products.push({
+              id: m.id, title: m.title, brand: "Parley seller",
+              bestPriceCents: m.priceCents, currency: m.currency,
+              merchant: m.sellerName, offersCount: 1,
+              offers: [{ domain: m.sellerName, priceCents: m.priceCents, currency: m.currency, url: "" }],
+            });
+          }
+        }
         for (const p of products) await cachePut(ctx.userId, p);
         const enriched = await withVendorScores(getDb(), products);
         await audit({
@@ -279,15 +308,23 @@ export function agentTools(ctx: AgentCtx) {
         // A2A over a real protocol boundary when MCP_SECRET is set: the buyer
         // calls the merchant agent's JSON-RPC service over HTTP. In-process
         // call remains as fallback (and for devs without the secret).
+        const sellerProfile = await sellerProfileFor(productId);
         const roundArgs = {
           listPriceCents: session.listPriceCents,
           offerCents,
           roundsUsed: session.transcript.filter((t) => t.speaker === "buyer").length,
           productId,
           productTitle: product.title,
+          floorRatioPct: sellerProfile?.floorRatioPct,
+          style: sellerProfile?.style,
+          sellerName: sellerProfile?.displayName,
         };
         const resp = env.mcpSecret
-          ? await callMerchantOverMcp(roundArgs).catch(
+          ? await callMerchantOverMcp({
+              ...roundArgs,
+              merchantId: sellerProfile?.id,
+              buyerLabel: `parley-user-${ctx.userId.slice(0, 8)}`,
+            }).catch(
               () => merchantAgentRound(roundArgs),
             )
           : await merchantAgentRound(roundArgs);
@@ -953,6 +990,24 @@ export function agentTools(ctx: AgentCtx) {
   };
 }
 
+/** A product id `sp_*` belongs to a Parley seller — resolve their agent config. */
+async function sellerProfileFor(productId: string) {
+  if (!productId.startsWith("sp_")) return null;
+  const db = getDb();
+  const [sp] = await db
+    .select({ userId: sellerProducts.userId })
+    .from(sellerProducts)
+    .where(eq(sellerProducts.id, productId))
+    .limit(1);
+  if (!sp) return null;
+  const [p] = await db
+    .select()
+    .from(merchantProfiles)
+    .where(eq(merchantProfiles.userId, sp.userId))
+    .limit(1);
+  return p ?? null;
+}
+
 /** JSON-RPC call to the merchant agent service — the literal A2A boundary. */
 async function callMerchantOverMcp(args: {
   listPriceCents: number;
@@ -960,6 +1015,8 @@ async function callMerchantOverMcp(args: {
   roundsUsed: number;
   productId: string;
   productTitle: string;
+  merchantId?: string;
+  buyerLabel?: string;
 }) {
   const res = await fetch(`${env.appUrl}/api/mcp`, {
     method: "POST",

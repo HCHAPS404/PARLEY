@@ -159,6 +159,32 @@ alter table orders_local add column if not exists tracking_status text;
 alter table orders_local add column if not exists invoice_id text;
 alter table orders_local add column if not exists reorder_rule_id text;
 alter table orders_local add column if not exists captured_cents integer not null default 0;
+create table if not exists merchant_profiles (
+  id text primary key,
+  user_id text not null unique,
+  display_name text not null,
+  floor_ratio_pct integer not null default 85,
+  style text not null default 'balanced',
+  created_at timestamptz default now()
+);
+create table if not exists seller_products (
+  id text primary key,
+  user_id text not null,
+  title text not null,
+  price_cents integer not null,
+  currency text not null default 'USD',
+  stock integer not null default 10,
+  created_at timestamptz default now()
+);
+create table if not exists merchant_sales (
+  id text primary key,
+  seller_user_id text not null,
+  product_title text not null,
+  agreed_cents integer not null,
+  buyer_label text,
+  status text not null default 'agreed',
+  created_at timestamptz default now()
+);
 create table if not exists reorder_rules (
   id text primary key,
   user_id text not null,

@@ -152,6 +152,38 @@ export const alerts = pgTable("alerts", {
   status: text("status").notNull().default("open"), // open|acted|dismissed
 });
 
+/** The user as SELLER — their own merchant agent, reachable over /api/mcp. */
+export const merchantProfiles = pgTable("merchant_profiles", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().unique(), // one merchant persona per user
+  displayName: text("display_name").notNull(), // e.g. "Acme Supply Co."
+  floorRatioPct: integer("floor_ratio_pct").notNull().default(85), // % of list = margin floor
+  style: text("style").notNull().default("balanced"), // aggressive|balanced|conservative
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+/** What the user's merchant agent sells — their own catalog. */
+export const sellerProducts = pgTable("seller_products", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  priceCents: integer("price_cents").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  stock: integer("stock").notNull().default(10),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+/** Sales closed by the user's merchant agent — the seller-side ledger. */
+export const merchantSales = pgTable("merchant_sales", {
+  id: text("id").primaryKey(),
+  sellerUserId: text("seller_user_id").notNull(),
+  productTitle: text("product_title").notNull(),
+  agreedCents: integer("agreed_cents").notNull(),
+  buyerLabel: text("buyer_label"), // who the agent sold to, if known
+  status: text("status").notNull().default("agreed"), // agreed|invoiced|paid
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 /** Autonomous procurement rules — the agent reorders on a schedule, inside policy. */
 export const reorderRules = pgTable("reorder_rules", {
   id: text("id").primaryKey(),

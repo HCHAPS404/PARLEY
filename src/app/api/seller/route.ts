@@ -1,0 +1,109 @@
+import { desc, eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { ensureDb, getDb } from "@/lib/db";
+import { merchantProfiles, merchantSales, sellerProducts } from "@/lib/db/schema";
+import { getSessionUser } from "@/lib/auth";
+import { audit } from "@/lib/audit";
+
+export const maxDuration = 30;
+
+/** Seller-side state: my merchant profile, my catalog, my agent's sales. */
+export async function GET() {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  await ensureDb();
+  const db = getDb();
+  const [profile] = await db
+    .select()
+    .from(merchantProfiles)
+    .where(eq(merchantProfiles.userId, user.id))
+    .limit(1);
+  const products = await db
+    .select()
+    .from(sellerProducts)
+    .where(eq(sellerProducts.userId, user.id))
+    .orderBy(desc(sellerProducts.createdAt))
+    .limit(50);
+  const sales = await db
+    .select()
+    .from(merchantSales)
+    .where(eq(merchantSales.sellerUserId, user.id))
+    .orderBy(desc(merchantSales.createdAt))
+    .limit(50);
+  return NextResponse.json({ profile: profile ?? null, products, sales });
+}
+
+/** Configure the merchant agent and stock the catalog. */
+export async function POST(req: Request) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const body = (await req.json()) as {
+    action?: string;
+    displayName?: string;
+    floorRatioPct?: number;
+    style?: string;
+    title?: string;
+    priceUsd?: number;
+    stock?: number;
+    productId?: string;
+  };
+  await ensureDb();
+  const db = getDb();
+
+  if (body.action === "profile") {
+    const displayName = String(body.displayName ?? "").trim().slice(0, 80);
+    if (!displayName) return NextResponse.json({ error: "displayName required" }, { status: 400 });
+    const floorRatioPct = Math.min(95, Math.max(50, Math.round(Number(body.floorRatioPct) || 85)));
+    const style = ["aggressive", "balanced", "conservative"].includes(body.style ?? "")
+      ? body.style!
+      : "balanced";
+    const [existing] = await db
+      .select()
+      .from(merchantProfiles)
+      .where(eq(merchantProfiles.userId, user.id))
+      .limit(1);
+    const id = existing?.id ?? `merch_${crypto.randomUUID().slice(0, 8)}`;
+    if (existing) {
+      await db
+        .update(merchantProfiles)
+        .set({ displayName, floorRatioPct, style })
+        .where(eq(merchantProfiles.id, id));
+    } else {
+      await db.insert(merchantProfiles).values({ id, userId: user.id, displayName, floorRatioPct, style });
+    }
+    await audit({
+      actor: "user", action: "seller_profile_set",
+      userId: user.id, input: { displayName, floorRatioPct, style },
+      rationale: "Configure the user's merchant agent — floor and negotiation style",
+    });
+    return NextResponse.json({ ok: true, id });
+  }
+
+  if (body.action === "addProduct") {
+    const title = String(body.title ?? "").trim().slice(0, 120);
+    const priceCents = Math.round(Number(body.priceUsd) * 100);
+    if (!title || !Number.isInteger(priceCents) || priceCents <= 0)
+      return NextResponse.json({ error: "title + positive priceUsd required" }, { status: 400 });
+    const [profile] = await db
+      .select()
+      .from(merchantProfiles)
+      .where(eq(merchantProfiles.userId, user.id))
+      .limit(1);
+    if (!profile) return NextResponse.json({ error: "Create your merchant profile first" }, { status: 400 });
+    const id = `sp_${crypto.randomUUID().slice(0, 8)}`;
+    await db.insert(sellerProducts).values({
+      id, userId: user.id, title, priceCents,
+      stock: Math.max(0, Math.round(Number(body.stock) || 10)),
+    });
+    return NextResponse.json({ ok: true, id });
+  }
+
+  if (body.action === "removeProduct") {
+    await db
+      .delete(sellerProducts)
+      .where(eq(sellerProducts.id, String(body.productId)));
+    return NextResponse.json({ ok: true });
+  }
+
+  return NextResponse.json({ error: `Unknown action: ${body.action}` }, { status: 400 });
+}

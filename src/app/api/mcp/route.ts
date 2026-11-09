@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 import { merchantAgentRound } from "@/lib/agent/merchant";
 import { env } from "@/lib/env";
+import { ensureDb, getDb } from "@/lib/db";
+import { alerts, merchantProfiles, merchantSales, spaces } from "@/lib/db/schema";
 
 export const maxDuration = 60;
 
@@ -23,6 +26,8 @@ const TOOLS = [
         listPriceCents: { type: "integer" },
         offerCents: { type: "integer" },
         roundsUsed: { type: "integer" },
+        merchantId: { type: "string", description: "A Parley user's merchant profile — negotiate with THEIR agent" },
+        buyerLabel: { type: "string" },
       },
       required: ["productId", "productTitle", "listPriceCents", "offerCents", "roundsUsed"],
     },
@@ -73,13 +78,57 @@ export async function POST(req: Request) {
       const roundsUsed = Number(args?.roundsUsed ?? 1);
       if (!Number.isInteger(listPriceCents) || !Number.isInteger(offerCents) || listPriceCents <= 0 || offerCents <= 0)
         return rpc(body.id, undefined, { code: -32602, message: "Invalid price params" });
+
+      // merchant_id → this sale is negotiated by a real Parley user's own
+      // merchant agent, under their floor and their style. Absent → shared
+      // demo merchant at the default 85% floor.
+      const merchantId = args?.merchantId ? String(args.merchantId) : null;
+      let profile: typeof merchantProfiles.$inferSelect | null = null;
+      if (merchantId) {
+        await ensureDb();
+        const [p] = await getDb()
+          .select()
+          .from(merchantProfiles)
+          .where(eq(merchantProfiles.id, merchantId))
+          .limit(1);
+        profile = p ?? null;
+      }
       const resp = await merchantAgentRound({
         productId: String(args?.productId ?? ""),
         productTitle: String(args?.productTitle ?? "Product"),
         listPriceCents,
         offerCents,
         roundsUsed,
+        floorRatioPct: profile?.floorRatioPct,
+        style: profile?.style,
+        sellerName: profile?.displayName,
       });
+      // A closed deal is the seller's revenue — record it on their ledger.
+      if (resp.action === "accept" && profile) {
+        const db = getDb();
+        await db.insert(merchantSales).values({
+          id: crypto.randomUUID(),
+          sellerUserId: profile.userId,
+          productTitle: String(args?.productTitle ?? "Product"),
+          agreedCents: resp.priceCents,
+          buyerLabel: args?.buyerLabel ? String(args.buyerLabel) : null,
+        });
+        // Route the sale alert into the seller's own space so their inbox sees it.
+        const [sellerSpace] = await db
+          .select({ id: spaces.id })
+          .from(spaces)
+          .where(eq(spaces.userId, profile.userId))
+          .limit(1);
+        await db.insert(alerts).values({
+          kind: "sale_closed",
+          spaceId: sellerSpace?.id ?? null,
+          payload: {
+            title: `Your agent sold "${String(args?.productTitle ?? "item").slice(0, 80)}"`,
+            priceUsd: resp.priceCents / 100,
+            reason: `Closed by ${profile.displayName} at $${(resp.priceCents / 100).toFixed(2)} — issue the invoice to get paid`,
+          },
+        });
+      }
       return rpc(body.id, resp);
     }
     return rpc(body.id, undefined, { code: -32601, message: `Unknown tool: ${name}` });

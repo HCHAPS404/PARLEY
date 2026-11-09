@@ -28,7 +28,17 @@ Rules:
 - walk only when the offer is hopelessly low or rounds are exhausted.
 - Keep the message human, brief, and merchant-like — no JSON talk, no percentages.`;
 
-const floorFor = (listPriceCents: number) => Math.round(listPriceCents * 0.85);
+const floorFor = (listPriceCents: number, ratioPct = 85) =>
+  Math.round((listPriceCents * ratioPct) / 100);
+
+const STYLE_HINT: Record<string, string> = {
+  aggressive:
+    "You negotiate hard — counters stay close to list price, you concede slowly, and you lean on scarcity.",
+  balanced:
+    "You negotiate like a fair merchant — reasonable counters, willing to meet halfway.",
+  conservative:
+    "You close deals fast — accept near the floor rather than lose the sale.",
+};
 
 const stockFor = (productId: string) => {
   // Deterministic pseudo-stock per product — the merchant "knows" its warehouse.
@@ -94,8 +104,11 @@ export async function merchantAgentRound(input: {
   productId: string;
   productTitle: string;
   maxRounds?: number;
+  floorRatioPct?: number; // the seller's own margin config — their agent, their floor
+  style?: string;
+  sellerName?: string;
 }): Promise<MerchantResponse> {
-  const floorCents = floorFor(input.listPriceCents);
+  const floorCents = floorFor(input.listPriceCents, input.floorRatioPct);
   const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
 
   try {
@@ -118,7 +131,7 @@ export async function merchantAgentRound(input: {
           execute: async () => ({ units: stockFor(input.productId) }),
         }),
       },
-      prompt: `Product: "${input.productTitle}" — list price ${usd(input.listPriceCents)}. Round ${input.roundsUsed} of ${input.maxRounds ?? 4}. Buyer's offer: ${usd(input.offerCents)}. Check your floor and decide.`,
+      prompt: `${input.sellerName ? `You sell for "${input.sellerName}". ` : ""}${STYLE_HINT[input.style ?? "balanced"] ?? STYLE_HINT.balanced}\nProduct: "${input.productTitle}" — list price ${usd(input.listPriceCents)}. Round ${input.roundsUsed} of ${input.maxRounds ?? 4}. Buyer's offer: ${usd(input.offerCents)}. Check your floor and decide.`,
       stopWhen: stepCountIs(4),
       maxOutputTokens: 700,
     });
