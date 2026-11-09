@@ -112,3 +112,84 @@ export async function searchProducts(input: {
     return { products: [], error: e instanceof Error ? e.message : "Channel3 error" };
   }
 }
+
+export interface PricePoint {
+  t: string;
+  cents: number;
+}
+export interface PriceStats {
+  meanCents: number;
+  minCents: number;
+  maxCents: number;
+  currentCents: number;
+  status?: string; // Channel3 label: high|low|normal band vs history
+  currency: string;
+}
+
+/** Real price trajectory for a catalog product — the demand signal behind "what's moving". */
+export async function priceHistory(
+  productId: string,
+  days = 90,
+): Promise<{ points: PricePoint[]; stats: PriceStats | null; error?: string }> {
+  if (!env.channel3ApiKey)
+    return { points: [], stats: null, error: "CHANNEL3_API_KEY not set" };
+  try {
+    const h = (await channel3().priceTracking.retrieveHistory({
+      canonical_product_id: productId,
+      days,
+    })) as {
+      history?: { timestamp: string; price: number; currency?: string }[];
+      statistics?: {
+        mean?: number;
+        min_price?: number;
+        max_price?: number;
+        current_price?: number;
+        current_status?: string;
+        currency?: string;
+      };
+    };
+    const points = (h.history ?? []).map((x) => ({
+      t: x.timestamp,
+      cents: Math.round(x.price * 100),
+    }));
+    const s = h.statistics;
+    return {
+      points,
+      stats: s
+        ? {
+            meanCents: Math.round((s.mean ?? 0) * 100),
+            minCents: Math.round((s.min_price ?? 0) * 100),
+            maxCents: Math.round((s.max_price ?? 0) * 100),
+            currentCents: Math.round((s.current_price ?? 0) * 100),
+            status: s.current_status,
+            currency: s.currency ?? "USD",
+          }
+        : null,
+    };
+  } catch (e) {
+    return {
+      points: [],
+      stats: null,
+      error: e instanceof Error ? e.message : "price history error",
+    };
+  }
+}
+
+/** Subscribe Channel3-side tracking so history accumulates for watched products. */
+export async function startPriceTracking(productId: string): Promise<void> {
+  try {
+    await channel3().priceTracking.start({ canonical_product_id: productId });
+  } catch {
+    // Best-effort — history is retrievable regardless.
+  }
+}
+
+/** How crowded the market is — alternatives to a product via Channel3's similarity. */
+export async function countSimilar(productId: string): Promise<number | null> {
+  try {
+    const page = await channel3().products.findSimilar({ product_id: productId });
+    return ((page as { data?: unknown[] }).data ?? []).length;
+  } catch {
+    return null;
+  }
+}

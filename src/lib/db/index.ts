@@ -213,6 +213,19 @@ create table if not exists conversations (
   created_at timestamptz default now()
 );
 alter table messages add column if not exists conversation_id text;
+create table if not exists price_watches (
+  id text primary key,
+  user_id text not null,
+  space_id text,
+  product_id text not null,
+  title text not null,
+  baseline_cents integer not null,
+  threshold_cents integer,
+  last_cents integer,
+  currency text not null default 'USD',
+  active boolean not null default true,
+  created_at timestamptz default now()
+);
 `;
 
 /** Idempotent schema bootstrap — runs once per process, lazily on first use. */

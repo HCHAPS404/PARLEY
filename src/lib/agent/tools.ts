@@ -1,7 +1,13 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { eq, desc, and, gt, sql, inArray } from "drizzle-orm";
-import { searchProducts, type ProductCard } from "../channel3";
+import {
+  searchProducts,
+  priceHistory,
+  startPriceTracking,
+  countSimilar,
+  type ProductCard,
+} from "../channel3";
 import {
   createEscrowOrder,
   getOrder,
@@ -20,6 +26,7 @@ import {
   reorderRules,
   sellerProducts,
   merchantProfiles,
+  priceWatches,
   users,
 } from "../db/schema";
 import { merchantAgentRound } from "./merchant";
@@ -39,6 +46,8 @@ export type AgentCtx = {
   userId: string;
   role: "admin" | "demo";
   spaceId: string;
+  /** Image the user attached this turn — visual search consumes it, the model never re-uploads bytes. */
+  lastImage?: { base64: string; mediaType: string };
 };
 
 type Negotiation = {
@@ -202,7 +211,7 @@ export function agentTools(ctx: AgentCtx) {
   return {
     search_products: tool({
       description:
-        "Search a live catalog of 100M+ real products (Channel3). Use for any product discovery, price comparison, or 'find this cheaper' with imageUrl. Always call before creating orders — prices must come from here, never from memory.",
+        "Search a live catalog of 100M+ real products (Channel3). Use for any product discovery, price comparison, or 'find this cheaper'. When the user attached an image this turn it's used automatically — add a text query to refine. Always call before creating orders — prices must come from here, never from memory.",
       inputSchema: z.object({
         query: z.string().optional().describe("Natural-language product search"),
         imageUrl: z
@@ -228,6 +237,7 @@ export function agentTools(ctx: AgentCtx) {
         const { products, error } = await searchProducts({
           query,
           imageUrl,
+          base64Image: imageUrl ? undefined : ctx.lastImage?.base64,
           maxPriceCents: maxPriceUsd ? toCents(maxPriceUsd) : undefined,
           limit,
         });
@@ -998,6 +1008,201 @@ export function agentTools(ctx: AgentCtx) {
             enabled: r.enabled, lastRunAt: r.lastRunAt,
           })),
         };
+      },
+    }),
+
+    market_report: tool({
+      description:
+        "Market intelligence for a product idea — real catalog depth (how many merchants carry it), cross-merchant price spread, vendor reliability, and the benchmark product's true 90-day price trajectory. Use for 'what should I sell', 'is X trending', product-selection and dropshipping questions — answers demand questions with live data, not vibes.",
+      inputSchema: z.object({
+        query: z.string().describe("Product or niche to analyze"),
+        limit: z.number().int().min(3).max(10).default(6),
+      }),
+      execute: async ({ query, limit }) => {
+        const rl = rateLimit(`search:${ctx.userId}`, SEARCH_LIMIT[ctx.role], 3600_000);
+        if (!rl.ok)
+          return { error: `Search rate limit reached — try again in ${Math.ceil(rl.retryAfterSec / 60)} min.` };
+        const { products, error } = await searchProducts({ query, limit });
+        if (!products.length)
+          return { error: error ?? "No market data for that query" };
+        await ensureDb();
+        for (const p of products) await cachePut(ctx.userId, p);
+        const enriched = await withVendorScores(getDb(), products);
+        const merchants = [
+          ...new Set(products.map((p) => p.merchant).filter(Boolean)),
+        ];
+        const prices = products
+          .map((p) => p.bestPriceCents)
+          .filter((c): c is number => c != null)
+          .sort((a, b) => a - b);
+        const top = enriched[0];
+        const [hist, similar] = await Promise.all([
+          priceHistory(top.id, 90),
+          countSimilar(top.id),
+        ]);
+        const first = hist.points[0]?.cents;
+        const last = hist.points.at(-1)?.cents;
+        const trendPct =
+          first && last ? Math.round(((last - first) / first) * 100) : null;
+        await audit({
+          actor: "agent",
+          action: "market_report",
+          userId: ctx.userId,
+          spaceId: ctx.spaceId,
+          input: { query },
+          output: { merchants: merchants.length, trendPct },
+          rationale: "Market intelligence — demand priced from live data",
+        });
+        return {
+          query,
+          sampleSize: products.length,
+          merchantCount: merchants.length,
+          priceRangeUsd: prices.length
+            ? {
+                min: usd(prices[0]),
+                median: usd(prices[Math.floor(prices.length / 2)]),
+                max: usd(prices.at(-1)!),
+              }
+            : null,
+          alternativesCount: similar,
+          benchmarkProduct: {
+            id: top.id,
+            title: top.title,
+            merchant: top.merchant,
+            priceUsd: top.bestPriceCents != null ? usd(top.bestPriceCents) : null,
+          },
+          priceTrend90d: hist.stats
+            ? {
+                currentUsd: usd(hist.stats.currentCents),
+                meanUsd: usd(hist.stats.meanCents),
+                minUsd: usd(hist.stats.minCents),
+                maxUsd: usd(hist.stats.maxCents),
+                trendPct,
+                status: hist.stats.status,
+                dataPoints: hist.points.length,
+              }
+            : null,
+          sparkPoints: hist.points.map((p) => p.cents),
+          products: enriched,
+        };
+      },
+    }),
+
+    track_price: tool({
+      description:
+        "Arm a price watch on a product from search results — the watchdog polls its Channel3 price history and alerts the Inbox when it drops ≥5% or under the target you name. Set-and-forget market tracking.",
+      inputSchema: z.object({
+        productId: z.string().describe("Product id from search_products or market_report"),
+        alertBelowUsd: z
+          .number()
+          .positive()
+          .optional()
+          .describe("Alert when the price falls under this"),
+      }),
+      execute: async ({ productId, alertBelowUsd }) => {
+        await ensureDb();
+        const db = getDb();
+        const product = await cacheGet(ctx.userId, productId);
+        if (!product || product.bestPriceCents == null)
+          return { error: "Product not in search context — run search_products first" };
+        const active = await db
+          .select({ productId: priceWatches.productId })
+          .from(priceWatches)
+          .where(
+            and(
+              eq(priceWatches.userId, ctx.userId),
+              eq(priceWatches.spaceId, ctx.spaceId),
+              eq(priceWatches.active, true),
+            ),
+          );
+        if (active.some((w) => w.productId === productId))
+          return { error: "Already watching this product" };
+        const cap = ctx.role === "admin" ? 25 : 3;
+        if (active.length >= cap)
+          return { error: `Watch limit reached (${cap}) — stop a watch first` };
+        const id = `pw_${crypto.randomUUID().slice(0, 8)}`;
+        await db.insert(priceWatches).values({
+          id,
+          userId: ctx.userId,
+          spaceId: ctx.spaceId,
+          productId,
+          title: product.title,
+          baselineCents: product.bestPriceCents,
+          thresholdCents: alertBelowUsd ? toCents(alertBelowUsd) : null,
+          lastCents: product.bestPriceCents,
+          currency: product.currency,
+        });
+        void startPriceTracking(productId);
+        await audit({
+          actor: "agent",
+          action: "price_watch_armed",
+          userId: ctx.userId,
+          spaceId: ctx.spaceId,
+          input: { productId, alertBelowUsd },
+          output: { watchId: id },
+          rationale: "Watchdog polls Channel3 price history for drops",
+        });
+        return {
+          watchId: id,
+          title: product.title,
+          watchingFromUsd: usd(product.bestPriceCents),
+          alertBelowUsd: alertBelowUsd ?? null,
+          note: "The watchdog checks the price trend — a drop lands in your Inbox.",
+        };
+      },
+    }),
+
+    list_price_watches: tool({
+      description: "List active price watches and the last seen price vs baseline.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        await ensureDb();
+        const rows = await getDb()
+          .select()
+          .from(priceWatches)
+          .where(
+            and(
+              eq(priceWatches.userId, ctx.userId),
+              eq(priceWatches.spaceId, ctx.spaceId),
+              eq(priceWatches.active, true),
+            ),
+          );
+        return {
+          watches: rows.map((w) => ({
+            id: w.id,
+            title: w.title,
+            baselineUsd: usd(w.baselineCents),
+            lastUsd: w.lastCents != null ? usd(w.lastCents) : null,
+            alertBelowUsd: w.thresholdCents != null ? usd(w.thresholdCents) : null,
+            currency: w.currency,
+          })),
+        };
+      },
+    }),
+
+    stop_price_watch: tool({
+      description: "Disarm a price watch by its watch id.",
+      inputSchema: z.object({ watchId: z.string() }),
+      execute: async ({ watchId }) => {
+        await ensureDb();
+        const db = getDb();
+        const [w] = await db
+          .select({ id: priceWatches.id })
+          .from(priceWatches)
+          .where(
+            and(
+              eq(priceWatches.id, watchId),
+              eq(priceWatches.userId, ctx.userId),
+              eq(priceWatches.spaceId, ctx.spaceId),
+            ),
+          )
+          .limit(1);
+        if (!w) return { error: "Watch not found" };
+        await db
+          .update(priceWatches)
+          .set({ active: false })
+          .where(eq(priceWatches.id, watchId));
+        return { stopped: watchId };
       },
     }),
 

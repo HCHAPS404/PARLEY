@@ -53,11 +53,36 @@ export async function POST(req: Request) {
     }
   }
 
+  // An attached image becomes visual-search context — the model picks the
+  // intent, the server supplies the bytes (they never round-trip the prompt).
+  const imgPart = (
+    last?.role === "user" ? (last.parts as unknown[]) : []
+  ).find(
+    (p): p is { type: string; mediaType?: string; url?: string } =>
+      typeof p === "object" &&
+      p !== null &&
+      (p as { type?: string }).type === "file" &&
+      (p as { mediaType?: string }).mediaType?.startsWith("image/") === true &&
+      typeof (p as { url?: string }).url === "string",
+  );
+  const dataUrl = imgPart?.url ?? "";
+  const lastImage = dataUrl.startsWith("data:")
+    ? {
+        base64: dataUrl.slice(dataUrl.indexOf(",") + 1),
+        mediaType: imgPart!.mediaType!,
+      }
+    : undefined;
+
   const result = streamText({
     model: getModel(),
     system: SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
-    tools: agentTools({ userId: user.id, role: user.role, spaceId: space.id }),
+    tools: agentTools({
+      userId: user.id,
+      role: user.role,
+      spaceId: space.id,
+      lastImage,
+    }),
     stopWhen: stepCountIs(14),
     maxOutputTokens: 4096,
     onFinish: async ({ usage, text }) => {

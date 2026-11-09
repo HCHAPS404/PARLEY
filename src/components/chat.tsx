@@ -6,6 +6,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import {
   ArrowUp,
+  BarChart3,
   ExternalLink,
   Handshake,
   Loader2,
@@ -14,6 +15,8 @@ import {
   PackageSearch,
   Paperclip,
   Plus,
+  TrendingDown,
+  TrendingUp,
   ShieldCheck,
   Trash2,
   Wrench,
@@ -569,6 +572,9 @@ function ToolPart({ part }: { part: any }) {
   if (name === "search_products" && done && part.output?.products?.length) {
     return <ProductGrid products={part.output.products} />;
   }
+  if (name === "market_report" && done && part.output?.merchantCount != null) {
+    return <MarketReportCard output={part.output} />;
+  }
   if (name === "merchant_quote" && done && part.output?.transcript) {
     return <NegotiationCard output={part.output} />;
   }
@@ -668,6 +674,91 @@ function ProductGrid({ products }: { products: ProductCard[] }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function MarketReportCard({ output }: { output: any }) {
+  const trend = output.priceTrend90d;
+  const pts: number[] = output.sparkPoints ?? [];
+  const w = 120;
+  const h = 28;
+  const spark =
+    pts.length > 1
+      ? pts
+          .map((c, i) => {
+            const min = Math.min(...pts);
+            const max = Math.max(...pts);
+            const x = (i / (pts.length - 1)) * w;
+            const y = h - 2 - ((c - min) / Math.max(1, max - min)) * (h - 4);
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+          })
+          .join(" ")
+      : null;
+  const up = (trend?.trendPct ?? 0) > 2;
+  const down = (trend?.trendPct ?? 0) < -2;
+  return (
+    <div className="rounded-xl border border-line bg-card p-4">
+      <div className="mb-3 flex items-center gap-2 text-[12px] font-medium text-ink-soft">
+        <BarChart3 className="h-4 w-4 text-accent" />
+        Market report — {output.query}
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {[
+          { label: "merchants", value: output.merchantCount },
+          { label: "alternatives", value: output.alternativesCount ?? "—" },
+          {
+            label: "price spread",
+            value: output.priceRangeUsd
+              ? `$${output.priceRangeUsd.min}–$${output.priceRangeUsd.max}`
+              : "—",
+          },
+        ].map((s) => (
+          <div key={s.label} className="rounded-lg bg-paper px-2 py-2">
+            <div className="font-display text-[15px] font-semibold">{s.value}</div>
+            <div className="text-[10px] uppercase tracking-wide text-ink-soft">
+              {s.label}
+            </div>
+          </div>
+        ))}
+      </div>
+      {trend && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-line/60 px-3 py-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-[13px] font-medium">
+              {up ? (
+                <TrendingUp className="h-3.5 w-3.5 text-ok" />
+              ) : down ? (
+                <TrendingDown className="h-3.5 w-3.5 text-danger" />
+              ) : null}
+              {trend.trendPct != null && `${trend.trendPct > 0 ? "+" : ""}${trend.trendPct}%`}
+              <span className="font-normal text-ink-soft">90d · now ${trend.currentUsd}</span>
+            </div>
+            <div className="mt-0.5 text-[11px] text-ink-soft">
+              avg ${trend.meanUsd} · range ${trend.minUsd}–${trend.maxUsd}
+              {trend.status ? ` · ${trend.status}` : ""}
+            </div>
+          </div>
+          {spark && (
+            <svg width={w} height={h} className="shrink-0 text-accent" aria-hidden>
+              <polyline
+                points={spark}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+        </div>
+      )}
+      {output.benchmarkProduct && (
+        <div className="mt-2 truncate text-[11px] text-ink-soft">
+          Benchmark: {output.benchmarkProduct.title} — $
+          {output.benchmarkProduct.priceUsd} @ {output.benchmarkProduct.merchant}
+        </div>
+      )}
     </div>
   );
 }

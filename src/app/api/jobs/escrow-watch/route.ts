@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { getDb, ensureDb } from "@/lib/db";
-import { ordersLocal, alerts, reorderRules } from "@/lib/db/schema";
+import { ordersLocal, alerts, reorderRules, priceWatches } from "@/lib/db/schema";
 import { getOrder, createEscrowOrder } from "@/lib/paypal";
 import { paypalTools } from "@/lib/paypal-toolkit";
-import { searchProducts } from "@/lib/channel3";
+import { searchProducts, priceHistory } from "@/lib/channel3";
 import { checkPolicy } from "@/lib/policy";
 import { audit } from "@/lib/audit";
 import { env } from "@/lib/env";
@@ -242,12 +242,65 @@ export async function GET(req: Request) {
     }
   }
 
+  // ── Price watches — market signals land in the inbox ──
+  const watches = await db
+    .select()
+    .from(priceWatches)
+    .where(eq(priceWatches.active, true));
+  let watchesChecked = 0;
+  for (const w of watches) {
+    try {
+      const hist = await priceHistory(w.productId, 7);
+      const latest = hist.points.at(-1)?.cents ?? hist.stats?.currentCents;
+      watchesChecked++;
+      if (latest == null) continue;
+      const triggered =
+        latest <= (w.thresholdCents ?? Math.round(w.baselineCents * 0.95));
+      if (triggered) {
+        const [existing] = await db
+          .select({ id: alerts.id })
+          .from(alerts)
+          .where(
+            and(
+              eq(alerts.kind, "price_drop"),
+              eq(alerts.status, "open"),
+              sql`${alerts.payload}->>'watchId' = ${w.id}`,
+            ),
+          )
+          .limit(1);
+        if (!existing) {
+          await db.insert(alerts).values({
+            kind: "price_drop",
+            spaceId: w.spaceId,
+            payload: {
+              watchId: w.id,
+              productId: w.productId,
+              title: w.title,
+              baselineUsd: w.baselineCents / 100,
+              nowUsd: latest / 100,
+              currency: w.currency,
+              dropPct: Math.round((1 - latest / w.baselineCents) * 100),
+            },
+          });
+          summary.alerts++;
+        }
+      }
+      if (latest !== w.lastCents)
+        await db
+          .update(priceWatches)
+          .set({ lastCents: latest })
+          .where(eq(priceWatches.id, w.id));
+    } catch {
+      summary.errors++;
+    }
+  }
+
   await audit({
     actor: "system",
     action: "watchdog_run",
-    output: summary,
+    output: { ...summary, watchesChecked },
     rationale: "Scheduled escrow reconciliation — PayPal truth into local state",
   });
 
-  return NextResponse.json({ ok: true, ...summary });
+  return NextResponse.json({ ok: true, ...summary, watchesChecked });
 }

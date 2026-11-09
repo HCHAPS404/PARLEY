@@ -51,13 +51,17 @@ describe("agent tool surface", async () => {
       "create_reorder_rule",
       "get_escrow_status",
       "list_orders",
+      "list_price_watches",
       "list_reorder_rules",
+      "market_report",
       "merchant_quote",
       "register_tracking",
       "release_partial",
       "request_invoice",
       "run_rfq",
       "search_products",
+      "stop_price_watch",
+      "track_price",
       "void_escrow_order",
     ]);
   });

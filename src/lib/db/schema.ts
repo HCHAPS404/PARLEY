@@ -153,6 +153,21 @@ export const vendorScores = pgTable("vendor_scores", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+/** Products the agent watches — watchdog polls Channel3 price history and alerts on drops. */
+export const priceWatches = pgTable("price_watches", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  spaceId: text("space_id"),
+  productId: text("product_id").notNull(),
+  title: text("title").notNull(),
+  baselineCents: integer("baseline_cents").notNull(), // price when the watch was armed
+  thresholdCents: integer("threshold_cents"), // alert-below target, if the user named one
+  lastCents: integer("last_cents"),
+  currency: text("currency").notNull().default("USD"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 /** Proactive findings from the watchdog job. */
 export const alerts = pgTable("alerts", {
   id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
