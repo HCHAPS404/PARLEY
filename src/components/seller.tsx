@@ -10,12 +10,20 @@ import Link from "next/link";
 interface Profile { id: string; displayName: string; floorRatioPct: number; style: string }
 interface Product { id: string; title: string; priceCents: number; stock: number }
 interface Sale { id: string; productTitle: string; agreedCents: number; buyerLabel: string | null; trackingNumber?: string | null; status: string; createdAt: string }
+interface SellerEvent { id: string; productTitle: string; buyerLabel: string | null; kind: string; offerCents: number | null; counterCents: number | null; message: string | null; createdAt: string }
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
 
+const EV_KEY = {
+  offer: "sell.ev.offer",
+  counter: "sell.ev.counter",
+  accept: "sell.ev.accept",
+  walk: "sell.ev.walk",
+} as const;
+
 export function SellerDashboard() {
   const { t } = usePrefs();
-  const [data, setData] = useState<{ profile: Profile | null; products: Product[]; sales: Sale[] } | null>(null);
+  const [data, setData] = useState<{ profile: Profile | null; products: Product[]; sales: Sale[]; events: SellerEvent[] } | null>(null);
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
   const [shipTrack, setShipTrack] = useState<Record<string, string>>({});
@@ -26,7 +34,11 @@ export function SellerDashboard() {
     fetch("/api/seller")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setData(d));
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 15_000); // the agent works while you watch
+    return () => clearInterval(id);
+  }, []);
 
   const post = async (body: Record<string, unknown>) => {
     setBusy(true);
@@ -46,7 +58,7 @@ export function SellerDashboard() {
       </div>
     );
 
-  const { profile, products, sales } = data;
+  const { profile, products, sales, events } = data;
   const revenue = sales.reduce((s, x) => s + x.agreedCents, 0);
 
   if (!profile)
@@ -194,6 +206,40 @@ export function SellerDashboard() {
                     </button>
                   </div>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {/* Agent activity — every round the agent negotiates, live */}
+      <div className="rounded-xl border border-line bg-card p-4">
+        <h3 className="flex items-center gap-2 font-display text-sm font-semibold">
+          <Handshake className="h-4 w-4 text-accent" /> {t("sell.activity")}
+        </h3>
+        {!events?.length ? (
+          <p className="mt-3 text-[12px] text-ink-soft">{t("sell.noActivity")}</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-line/60">
+            {events.map((e) => (
+              <li key={e.id} className="py-2 text-[13px]">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${
+                      e.kind === "accept" ? "text-ok" : e.kind === "walk" ? "text-danger" : e.kind === "counter" ? "text-accent" : "text-ink-soft"
+                    }`}>
+                      {t(EV_KEY[e.kind as keyof typeof EV_KEY] ?? "sell.ev.offer")}
+                    </span>
+                    <div className="truncate font-medium">{e.productTitle}</div>
+                    <div className="text-[11px] text-ink-soft">
+                      {e.buyerLabel ?? "agent buyer"} · {new Date(e.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right text-[12px]">
+                    {e.offerCents != null && <div className="text-ink-soft">{usd(e.offerCents)}</div>}
+                    {e.counterCents != null && <div className="font-semibold">{usd(e.counterCents)}</div>}
+                  </div>
+                </div>
+                {e.message && <div className="mt-0.5 truncate text-[11px] italic text-ink-soft">“{e.message}”</div>}
               </li>
             ))}
           </ul>

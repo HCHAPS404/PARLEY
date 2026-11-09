@@ -215,6 +215,18 @@ export function ensureDb(): Promise<void> {
       for (const stmt of BOOTSTRAP.split(";").map((s) => s.trim()).filter(Boolean)) {
         await db.execute(sql.raw(stmt));
       }
+      await db.execute(sql`
+        create table if not exists seller_events (
+          id text primary key,
+          seller_user_id text not null,
+          product_title text not null,
+          buyer_label text,
+          kind text not null,
+          offer_cents integer,
+          counter_cents integer,
+          message text,
+          created_at timestamptz default now()
+        )`);
       await seedAdmin(db);
       await backfillSpaces(db);
       await seedDemoSeller(db);

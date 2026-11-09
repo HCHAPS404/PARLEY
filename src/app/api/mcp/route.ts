@@ -5,7 +5,7 @@ import { paypalTools } from "@/lib/paypal-toolkit";
 import { env } from "@/lib/env";
 import { ensureDb, getDb } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
-import { alerts, merchantProfiles, merchantSales, spaces } from "@/lib/db/schema";
+import { alerts, merchantProfiles, merchantSales, sellerEvents, spaces } from "@/lib/db/schema";
 
 export const maxDuration = 60;
 
@@ -108,6 +108,19 @@ export async function POST(req: Request) {
         style: profile?.style,
         sellerName: profile?.displayName,
       });
+      // Every round the seller's agent handles lands in their live feed.
+      if (profile) {
+        await getDb().insert(sellerEvents).values({
+          id: crypto.randomUUID(),
+          sellerUserId: profile.userId,
+          productTitle: String(args?.productTitle ?? "Product"),
+          buyerLabel: args?.buyerLabel ? String(args.buyerLabel) : null,
+          kind: resp.action,
+          offerCents,
+          counterCents: resp.action === "counter" || resp.action === "accept" ? resp.priceCents : null,
+          message: resp.message ?? null,
+        });
+      }
       // A closed deal is the seller's revenue — record it on their ledger.
       if (resp.action === "accept" && profile) {
         const db = getDb();

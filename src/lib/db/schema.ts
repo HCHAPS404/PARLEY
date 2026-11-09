@@ -188,6 +188,19 @@ export const merchantSales = pgTable("merchant_sales", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+/** Every negotiation round the seller's agent handles — the live activity feed. */
+export const sellerEvents = pgTable("seller_events", {
+  id: text("id").primaryKey(),
+  sellerUserId: text("seller_user_id").notNull(),
+  productTitle: text("product_title").notNull(),
+  buyerLabel: text("buyer_label"),
+  kind: text("kind").notNull(), // offer|counter|accept|walk
+  offerCents: integer("offer_cents"),
+  counterCents: integer("counter_cents"),
+  message: text("message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 /** Autonomous procurement rules — the agent reorders on a schedule, inside policy. */
 export const reorderRules = pgTable("reorder_rules", {
   id: text("id").primaryKey(),

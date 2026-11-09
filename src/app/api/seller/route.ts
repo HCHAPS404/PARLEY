@@ -1,7 +1,7 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
-import { merchantProfiles, merchantSales, sellerProducts } from "@/lib/db/schema";
+import { merchantProfiles, merchantSales, sellerEvents, sellerProducts } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 
@@ -30,7 +30,13 @@ export async function GET() {
     .where(eq(merchantSales.sellerUserId, user.id))
     .orderBy(desc(merchantSales.createdAt))
     .limit(50);
-  return NextResponse.json({ profile: profile ?? null, products, sales });
+  const events = await db
+    .select()
+    .from(sellerEvents)
+    .where(eq(sellerEvents.sellerUserId, user.id))
+    .orderBy(desc(sellerEvents.createdAt))
+    .limit(30);
+  return NextResponse.json({ profile: profile ?? null, products, sales, events });
 }
 
 /** Configure the merchant agent and stock the catalog. */
