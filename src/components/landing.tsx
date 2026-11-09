@@ -16,8 +16,11 @@ import {
   LogIn,
   Moon,
   PackageSearch,
+  Radar,
   Radio,
+  ScanSearch,
   ShieldCheck,
+  Store,
   Sun,
   Timer,
   User,
@@ -218,6 +221,41 @@ export function Landing({ authed }: { authed: boolean }) {
               </p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── Beyond sourcing ───────────────────────────── */}
+      <section className="border-t border-line">
+        <div className="mx-auto max-w-6xl px-5 py-20">
+          <h2 className="font-display text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+            {t("land.more.title")}
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-center text-[14px] text-ink-soft">
+            {t("land.more.sub")}
+          </p>
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {(
+              [
+                { icon: BarChart3, t: "land.more.market.t", d: "land.more.market.d" },
+                { icon: Radar, t: "land.more.radar.t", d: "land.more.radar.d" },
+                { icon: ScanSearch, t: "land.more.visual.t", d: "land.more.visual.d" },
+                { icon: Store, t: "land.more.seller.t", d: "land.more.seller.d" },
+              ] satisfies { icon: typeof BarChart3; t: I18nKey; d: I18nKey }[]
+            ).map(({ icon: Icon, t: tk, d: dk }) => (
+              <div
+                key={tk}
+                className="rounded-2xl border border-line bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <div className="grid h-10 w-10 place-items-center rounded-xl bg-ok-soft text-ok">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="mt-4 text-[15px] font-semibold">{t(tk)}</h3>
+                <p className="mt-1.5 text-[13px] leading-5 text-ink-soft">
+                  {t(dk)}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

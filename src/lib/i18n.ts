@@ -40,6 +40,9 @@ const en = {
   "inbox.issueInvoice": "Issue invoice",
   "inbox.approvePaypal": "Approve on PayPal",
   "inbox.dismiss": "Dismiss",
+  "inbox.viewOffer": "View offer",
+  "inbox.checkNow": "Check now",
+  "inbox.checking": "Checking…",
 
   "sidebar.escrow": "Agentic escrow — held until delivery",
   "sidebar.sandbox": "PayPal sandbox — no real money",
@@ -206,6 +209,7 @@ const en = {
   "dash.kpi.orders": "Orders",
   "dash.kpi.held": "Held in escrow",
   "dash.kpi.captured": "Released to vendors",
+  "dash.kpi.saved": "Saved by negotiating",
   "dash.kpi.alerts": "Open alerts",
   "dash.status.title": "Order status",
   "dash.status.sub": "Where each order sits in the escrow lifecycle",
@@ -269,6 +273,22 @@ const en = {
   "land.how.watch.t": "Watch",
   "land.how.watch.d":
     "A watchdog runs every 15 minutes: reconciles PayPal state, flags authorizations nearing expiry, and surfaces delivery problems.",
+
+  "land.more.title": "Beyond sourcing — the agent reads the market",
+  "land.more.sub":
+    "Procurement is only half the job. The same agent researches demand, watches prices, and sells for you too.",
+  "land.more.market.t": "Market reports",
+  "land.more.market.d":
+    "Ask what to sell: real catalog depth, price spread, and a 90-day price trajectory from live listings — sparkline included, nothing invented.",
+  "land.more.radar.t": "Deal radar",
+  "land.more.radar.d":
+    "Track a product or a whole query — the watchdog scans every cycle and lands better offers in your Inbox, with the link to act on them.",
+  "land.more.visual.t": "Visual sourcing",
+  "land.more.visual.d":
+    "Attach a photo of anything — the agent matches it against the catalog and sources lookalike products without you typing a word.",
+  "land.more.seller.t": "Sell while you sleep",
+  "land.more.seller.d":
+    "The seller portal runs its own negotiating agent with a margin floor — live deal feed, auto-invoicing, and a radar of buyers who haven't closed.",
 
   "land.sec.title": "An agent allowed to touch money",
   "land.sec.sub":
@@ -354,6 +374,9 @@ const es: Record<I18nKey, string> = {
   "inbox.issueInvoice": "Emitir factura",
   "inbox.approvePaypal": "Aprobar en PayPal",
   "inbox.dismiss": "Descartar",
+  "inbox.viewOffer": "Ver oferta",
+  "inbox.checkNow": "Revisar ahora",
+  "inbox.checking": "Revisando…",
 
   "sidebar.escrow": "Escrow agéntico — retenido hasta la entrega",
   "sidebar.sandbox": "PayPal sandbox — sin dinero real",
@@ -520,6 +543,7 @@ const es: Record<I18nKey, string> = {
   "dash.kpi.orders": "Órdenes",
   "dash.kpi.held": "Retenido en escrow",
   "dash.kpi.captured": "Liberado a vendedores",
+  "dash.kpi.saved": "Ahorrado negociando",
   "dash.kpi.alerts": "Alertas abiertas",
   "dash.status.title": "Estado de órdenes",
   "dash.status.sub": "Dónde está cada orden en el ciclo del escrow",
@@ -583,6 +607,22 @@ const es: Record<I18nKey, string> = {
   "land.how.watch.t": "Vigila",
   "land.how.watch.d":
     "Un watchdog corre cada 15 minutos: reconcilia el estado de PayPal, marca autorizaciones por expirar y saca a la luz problemas de entrega.",
+
+  "land.more.title": "Más que sourcing — el agente lee el mercado",
+  "land.more.sub":
+    "Comprar es solo la mitad del trabajo. El mismo agente investiga demanda, vigila precios y también vende por ti.",
+  "land.more.market.t": "Reportes de mercado",
+  "land.more.market.d":
+    "Pregunta qué vender: profundidad real del catálogo, spread de precios y trayectoria de 90 días desde listings vivos — con sparkline, nada inventado.",
+  "land.more.radar.t": "Radar de ofertas",
+  "land.more.radar.d":
+    "Sigue un producto o una búsqueda entera — el watchdog escanea en cada ciclo y deja mejores ofertas en tu Inbox, con el link para actuar.",
+  "land.more.visual.t": "Sourcing visual",
+  "land.more.visual.d":
+    "Adjunta una foto de lo que sea — el agente la cruza con el catálogo y busca productos similares sin que escribas una palabra.",
+  "land.more.seller.t": "Vende mientras duermes",
+  "land.more.seller.d":
+    "El portal del vendedor corre su propio agente negociador con piso de margen — feed de tratos en vivo, facturación automática y radar de compradores sin cerrar.",
 
   "land.sec.title": "Un agente con permiso de tocar dinero",
   "land.sec.sub":

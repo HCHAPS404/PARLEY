@@ -7,6 +7,7 @@ import {
   Banknote,
   Bell,
   PackageCheck,
+  PiggyBank,
   ShieldCheck,
   Store,
 } from "lucide-react";
@@ -64,6 +65,7 @@ export function Dashboard() {
     const alerts = get("alerts");
     const vendors = get("vendor_scores");
     const audit = get("agent_activity");
+    const savings = get("savings")[0] ?? {};
 
     const heldCents = orders
       .filter((o) => ["authorized", "approved"].includes(String(o.status)))
@@ -111,6 +113,7 @@ export function Dashboard() {
         orders: orders.length,
         held: heldCents,
         captured,
+        saved: Number(savings.saved_usd) || 0,
         alerts: openAlerts.length,
       },
       days,
@@ -139,6 +142,7 @@ export function Dashboard() {
     { icon: PackageCheck, label: "dash.kpi.orders", value: String(kpis.orders), tone: "text-ink" },
     { icon: ShieldCheck, label: "dash.kpi.held", value: usd(kpis.held), tone: "text-accent-strong" },
     { icon: Banknote, label: "dash.kpi.captured", value: usd(kpis.captured), tone: "text-ok" },
+    { icon: PiggyBank, label: "dash.kpi.saved", value: usd(kpis.saved), tone: "text-ok" },
     { icon: Bell, label: "dash.kpi.alerts", value: String(kpis.alerts), tone: kpis.alerts ? "text-danger" : "text-ink" },
   ];
 
@@ -146,7 +150,7 @@ export function Dashboard() {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-6xl space-y-4 px-5 py-5">
         {/* KPI strip */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           {kpisRow.map(({ icon: Icon, label, value, tone }) => (
             <div
               key={label}

@@ -27,6 +27,7 @@ export function InboxPanel({ role }: { role: string }) {
   const { t } = usePrefs();
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = () =>
@@ -59,6 +60,18 @@ export function InboxPanel({ role }: { role: string }) {
     }
   }
 
+  async function checkNow() {
+    setChecking(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/jobs/run", { method: "POST" });
+      if (!r.ok) setError(`watchdog ${r.status}`);
+      await load();
+    } finally {
+      setChecking(false);
+    }
+  }
+
   if (alerts === null)
     return (
       <div className="grid h-40 place-items-center text-ink-soft">
@@ -68,6 +81,16 @@ export function InboxPanel({ role }: { role: string }) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-3 p-6">
+      <div className="flex justify-end">
+        <button
+          onClick={checkNow}
+          disabled={checking}
+          className="flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-[11px] font-medium text-ink-soft transition-colors hover:text-ink disabled:opacity-50"
+        >
+          <RefreshCcw className={`h-3 w-3 ${checking ? "animate-spin" : ""}`} />
+          {checking ? t("inbox.checking") : t("inbox.checkNow")}
+        </button>
+      </div>
       {error && (
         <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
@@ -88,7 +111,16 @@ export function InboxPanel({ role }: { role: string }) {
         return (
           <div key={a.id} className="rounded-xl border border-line bg-card p-4">
             <div className="flex items-start gap-3">
-              <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${meta.tone}`} />
+              {typeof p.image === "string" ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={p.image}
+                  alt=""
+                  className="h-10 w-10 shrink-0 rounded-md border border-line bg-white object-contain"
+                />
+              ) : (
+                <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${meta.tone}`} />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
@@ -113,6 +145,16 @@ export function InboxPanel({ role }: { role: string }) {
               </div>
             </div>
             <div className="mt-3 flex gap-2 pl-8">
+              {typeof p.buyUrl === "string" && (
+                <a
+                  href={p.buyUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="flex items-center gap-1.5 rounded-md bg-ok px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> {t("inbox.viewOffer")}
+                </a>
+              )}
               {a.kind === "delivered" && role === "admin" && (
                 <button
                   onClick={() => act(a.id, "release")}

@@ -253,6 +253,8 @@ export async function GET(req: Request) {
       let latest: number | null = null;
       let matchTitle = w.title;
       let vendor: string | null = null;
+      let buyUrl: string | null = null;
+      let image: string | null = null;
       if (w.productId) {
         // Single product — real 90-day price trajectory.
         const hist = await priceHistory(w.productId, 7);
@@ -267,6 +269,8 @@ export async function GET(req: Request) {
           latest = best.bestPriceCents;
           matchTitle = best.title;
           vendor = best.merchant ?? null;
+          buyUrl = best.buyUrl ?? null;
+          image = best.image ?? null;
         }
       }
       watchesChecked++;
@@ -297,6 +301,8 @@ export async function GET(req: Request) {
               query: w.query,
               title: matchTitle,
               vendor,
+              buyUrl,
+              image,
               priceUsd: latest / 100,
               baselineUsd: w.baselineCents / 100,
               dropPct,

@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
-import { alerts, auditLog, ordersLocal, vendorScores } from "@/lib/db/schema";
+import { alerts, auditLog, negotiations, ordersLocal, vendorScores } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { getActiveSpace } from "@/lib/spaces";
 
@@ -16,7 +16,7 @@ export async function GET() {
   const db = getDb();
   const space = await getActiveSpace(user.id);
 
-  const [orders, audit, vendors, alertRows] = await Promise.all([
+  const [orders, audit, vendors, alertRows, negRows] = await Promise.all([
     db
       .select()
       .from(ordersLocal)
@@ -36,7 +36,23 @@ export async function GET() {
       .where(eq(alerts.spaceId, space.id))
       .orderBy(desc(alerts.createdAt))
       .limit(200),
+    db
+      .select()
+      .from(negotiations)
+      .where(
+        and(
+          eq(negotiations.userId, user.id),
+          eq(negotiations.spaceId, space.id),
+          eq(negotiations.status, "agreed"),
+        ),
+      )
+      .limit(500),
   ]);
+  const negs = negRows.filter((n) => n.agreedCents != null);
+  const savedCents = negs.reduce(
+    (s, n) => s + Math.max(0, n.listPriceCents - (n.agreedCents ?? 0)),
+    0,
+  );
 
   return Response.json({
     sources: [
@@ -85,6 +101,15 @@ export async function GET() {
           kind: a.kind,
           status: a.status,
         })),
+      },
+      {
+        id: "savings",
+        data: [
+          {
+            saved_usd: money(savedCents),
+            negotiated_count: negs.length,
+          },
+        ],
       },
     ],
   });
