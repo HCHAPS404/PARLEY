@@ -33,7 +33,7 @@ async function AuthedPipeline() {
           </p>
         </header>
         <main className="min-h-0 flex-1">
-          <Pipeline />
+          <Pipeline role={user.role} />
         </main>
       </div>
     </AppShell>

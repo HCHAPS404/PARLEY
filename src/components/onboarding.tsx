@@ -23,7 +23,7 @@ export function Onboarding() {
     { icon: ShieldCheck, text: t("onb.s3") },
   ];
   return (
-    <div className="mx-4 mt-4 rounded-xl border border-accent/30 bg-accent-mist p-4">
+    <div className="fixed left-1/2 top-14 z-50 w-[340px] -translate-x-1/2 rounded-xl border border-accent/30 bg-card p-4 shadow-lg">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-sm font-semibold">{t("onb.title")}</h3>
         <button onClick={done} aria-label="dismiss" className="text-ink-soft hover:text-ink">
