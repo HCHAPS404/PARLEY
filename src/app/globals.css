@@ -56,6 +56,13 @@ html {
   font-size: 11px;
   font-weight: 500;
 }
+.parley-gantt .b-gantt-task:hover {
+  filter: brightness(0.96);
+}
+.parley-gantt .b-gantt-task,
+.parley-gantt .b-sch-event-wrap {
+  cursor: default;
+}
 .parley-gantt .b-gantt-task.b-done {
   background: var(--color-ok-soft);
   border-color: color-mix(in srgb, var(--color-ok) 55%, transparent);

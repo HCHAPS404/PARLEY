@@ -69,6 +69,14 @@ export default function PipelineInner({ tasks }: { tasks: PipelineTask[] }) {
           startDate={min}
           endDate={max}
           projectLinesFeature={false}
+          taskTooltipFeature={false}
+          taskEditFeature={false}
+          taskDragFeature={false}
+          taskResizeFeature={false}
+          taskMenuFeature={false}
+          cellEditFeature={false}
+          columnDragToolbarFeature={false}
+          dependenciesFeature={false}
           columns={[
             { type: "name", text: t("pipe.col.order"), width: 300 },
             { type: "percentdone", text: t("pipe.col.progress"), width: 90 },
