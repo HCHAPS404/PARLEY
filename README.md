@@ -236,8 +236,10 @@ These are invariants, not features — the code enforces them:
 
 ## Database
 
-Eleven tables, one schema, two drivers — `ensureDb()` bootstraps DDL, seeds
-the default policy, and backfills a `Personal` space per user on first run:
+Sixteen tables, one schema, two drivers — `ensureDb()` bootstraps DDL, seeds
+the default policy, backfills a `Personal` space per user, and plants the
+`Acme Supply Co.` demo merchant so every deployment ships with a live A2A
+counterparty:
 
 | Table | Purpose |
 |---|---|
@@ -250,6 +252,8 @@ the default policy, and backfills a `Personal` space per user on first run:
 | `audit_log` | Append-only agent/system actions with rationale, tokens, cost |
 | `vendor_scores` | Merchant reputation — global truth, shared across spaces |
 | `alerts` | Watchdog findings — overdue delivery, DELIVERED, reorder proposals |
+| `merchant_profiles` / `seller_products` | The user's own merchant agent — floor, style, catalog |
+| `merchant_sales` / `seller_events` | The seller ledger — closed deals + every negotiation round, live |
 
 **Default policy** — `$250`/tx · `$750`/day · `$3,000`/month · `$50` autonomous limit.
 
@@ -379,9 +383,15 @@ itself in production.
 - [x] PayPal invoices issued for escrowed orders (create + send)
 - [x] Autonomous reorder rules — policy-bounded, human-approved on PayPal
 - [x] Spaces — per-client / per-product-line cost centers with isolated policies
-- [x] Vendor scoring wired into merchant selection
+- [x] Vendor scoring wired into merchant selection — capture bumps on_time, void bumps dispute
+- [x] Two-sided marketplace — buyer + seller personas, own merchant agent per user, MCP/JSON-RPC A2A boundary
+- [x] Multi-vendor RFQ — parallel sealed quotes, winner persisted as a negotiation
+- [x] Partial escrow capture — release a fraction of the hold, tracked in `captured_cents`
+- [x] Approval inbox — delivered releases, reorder approvals, invoice issuing, nav badge
+- [x] Live seller feed — every negotiation round the merchant agent handles, in real time
+- [x] PayPal webhook — real-time order reconciliation (signature verification pending)
+- [x] CSV expense export per space
 - [ ] Neon Realtime live dashboard updates
-- [ ] Webhook-driven order status sync (currently polled)
 
 <img src="docs/parley-divider.svg" width="100%" alt="" />
 
