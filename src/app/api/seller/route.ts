@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
 import { merchantProfiles, merchantSales, sellerProducts } from "@/lib/db/schema";
@@ -46,6 +46,9 @@ export async function POST(req: Request) {
     priceUsd?: number;
     stock?: number;
     productId?: string;
+    saleId?: string;
+    trackingNumber?: string;
+    carrier?: string;
   };
   await ensureDb();
   const db = getDb();
@@ -96,6 +99,40 @@ export async function POST(req: Request) {
       stock: Math.max(0, Math.round(Number(body.stock) || 10)),
     });
     return NextResponse.json({ ok: true, id });
+  }
+
+  if (body.action === "ship") {
+    // Seller fulfills — tracking propagates to the buyer's escrow order,
+    // whose watchdog then watches the carrier until DELIVERED.
+    const saleId = String(body.saleId ?? "");
+    const trackingNumber = String(body.trackingNumber ?? "").trim();
+    const carrier = String(body.carrier ?? "").toUpperCase().replace(/\s+/g, "_");
+    if (!trackingNumber || !carrier)
+      return NextResponse.json({ error: "trackingNumber + carrier required" }, { status: 400 });
+    const [sale] = await db
+      .select()
+      .from(merchantSales)
+      .where(eq(merchantSales.id, saleId))
+      .limit(1);
+    if (!sale || sale.sellerUserId !== user.id)
+      return NextResponse.json({ error: "Sale not found" }, { status: 404 });
+    await db
+      .update(merchantSales)
+      .set({ trackingNumber, carrier, status: "shipped" })
+      .where(eq(merchantSales.id, saleId));
+    if (sale.buyerOrderId) {
+      await db.execute(sql`
+        update orders_local set tracking_number = ${trackingNumber}, carrier = ${carrier},
+          tracking_status = 'SHIPPED', updated_at = now()
+        where paypal_order_id = ${sale.buyerOrderId}`);
+    }
+    await audit({
+      actor: "user", action: "seller_shipped",
+      userId: user.id,
+      input: { saleId, trackingNumber, carrier, buyerOrderId: sale.buyerOrderId },
+      rationale: "Seller shipped — tracking flows into the buyer's escrow watch",
+    });
+    return NextResponse.json({ ok: true });
   }
 
   if (body.action === "removeProduct") {

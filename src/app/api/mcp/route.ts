@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { merchantAgentRound } from "@/lib/agent/merchant";
+import { paypalTools } from "@/lib/paypal-toolkit";
+import { sql } from "drizzle-orm";
 import { env } from "@/lib/env";
 import { ensureDb, getDb } from "@/lib/db";
 import { alerts, merchantProfiles, merchantSales, spaces } from "@/lib/db/schema";
@@ -119,13 +121,34 @@ export async function POST(req: Request) {
           .from(spaces)
           .where(eq(spaces.userId, profile.userId))
           .limit(1);
+        // Auto-invoice the buyer when they shared a billing email — the
+        // seller's agent closes AND bills without human clicks.
+        let invoiced = false;
+        const buyerEmail = args?.buyerEmail ? String(args.buyerEmail) : null;
+        if (buyerEmail) {
+          try {
+            const tools = paypalTools() as Record<string, { execute?: (a: unknown) => Promise<unknown> }>;
+            const value = (resp.priceCents / 100).toFixed(2);
+            const created = (await tools["create_invoice"]?.execute?.({
+              detail: { currency_code: "USD", note: `Parley A2A sale — ${profile.displayName}`, payment_term: { term_type: "DUE_ON_RECEIPT" } },
+              primary_recipients: [{ billing_info: { email_address: buyerEmail } }],
+              items: [{ name: String(args?.productTitle ?? "Item").slice(0, 127), quantity: "1", unit_amount: { currency_code: "USD", value } }],
+              amount: { breakdown: { item_total: { currency_code: "USD", value } } },
+            })) as { id?: string } | undefined;
+            if (created?.id) {
+              await tools["send_invoice"]?.execute?.({ invoice_id: created.id });
+              await db.execute(sql`update merchant_sales set status = 'invoiced' where seller_user_id = ${profile.userId} and buyer_order_id is null order by created_at desc limit 1`);
+              invoiced = true;
+            }
+          } catch { /* invoicing is best-effort — the sale stands */ }
+        }
         await db.insert(alerts).values({
           kind: "sale_closed",
           spaceId: sellerSpace?.id ?? null,
           payload: {
             title: `Your agent sold "${String(args?.productTitle ?? "item").slice(0, 80)}"`,
             priceUsd: resp.priceCents / 100,
-            reason: `Closed by ${profile.displayName} at $${(resp.priceCents / 100).toFixed(2)} — issue the invoice to get paid`,
+            reason: `Closed by ${profile.displayName} at $${(resp.priceCents / 100).toFixed(2)}${invoiced ? " — invoice sent to the buyer" : " — issue the invoice to get paid"}`,
           },
         });
       }

@@ -470,7 +470,10 @@ function NegotiationCard({ output }: { output: any }) {
     <div className="rounded-xl border border-line bg-card p-4">
       <div className="mb-3 flex items-center gap-2 text-[12px] font-medium text-ink-soft">
         <Handshake className="h-4 w-4 text-accent" />
-        Agent-to-agent negotiation — round {output.round}/{output.maxRounds}
+        Agent-to-agent — Parley × {output.merchantName ?? "Merchant"} · round {output.round}/{output.maxRounds}
+        {output.merchantPriceUsd != null && (
+          <span className="font-mono text-[11px] text-ink-soft">${output.merchantPriceUsd}</span>
+        )}
         <span
           className={`ml-auto rounded-full px-2 py-0.5 text-[11px] ${
             output.status === "agreed"
@@ -497,7 +500,7 @@ function NegotiationCard({ output }: { output: any }) {
               }`}
             >
               <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wide opacity-60">
-                {t.speaker === "buyer" ? "Parley" : "Merchant"}
+                {t.speaker === "buyer" ? "Parley" : (output.merchantName ?? "Merchant")}
               </span>
               {t.text}
             </div>

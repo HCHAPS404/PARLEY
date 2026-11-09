@@ -181,7 +181,10 @@ export const merchantSales = pgTable("merchant_sales", {
   productTitle: text("product_title").notNull(),
   agreedCents: integer("agreed_cents").notNull(),
   buyerLabel: text("buyer_label"), // who the agent sold to, if known
-  status: text("status").notNull().default("agreed"), // agreed|invoiced|paid
+  buyerOrderId: text("buyer_order_id"), // buyer's escrow order — links the two ledgers
+  trackingNumber: text("tracking_number"),
+  carrier: text("carrier"),
+  status: text("status").notNull().default("agreed"), // agreed|invoiced|shipped|paid
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

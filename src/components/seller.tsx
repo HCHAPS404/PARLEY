@@ -9,7 +9,7 @@ import Link from "next/link";
 
 interface Profile { id: string; displayName: string; floorRatioPct: number; style: string }
 interface Product { id: string; title: string; priceCents: number; stock: number }
-interface Sale { id: string; productTitle: string; agreedCents: number; buyerLabel: string | null; status: string; createdAt: string }
+interface Sale { id: string; productTitle: string; agreedCents: number; buyerLabel: string | null; trackingNumber?: string | null; status: string; createdAt: string }
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
 
@@ -18,6 +18,8 @@ export function SellerDashboard() {
   const [data, setData] = useState<{ profile: Profile | null; products: Product[]; sales: Sale[] } | null>(null);
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
+  const [shipTrack, setShipTrack] = useState<Record<string, string>>({});
+  const [shipCarrier, setShipCarrier] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   const load = () =>
@@ -154,17 +156,44 @@ export function SellerDashboard() {
         ) : (
           <ul className="mt-2 divide-y divide-line/60">
             {sales.map((s) => (
-              <li key={s.id} className="flex items-center justify-between py-2.5 text-[13px]">
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{s.productTitle}</div>
-                  <div className="text-[11px] text-ink-soft">
-                    {s.buyerLabel ?? "agent buyer"} · {new Date(s.createdAt).toLocaleString()}
+              <li key={s.id} className="py-2.5 text-[13px]">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{s.productTitle}</div>
+                    <div className="text-[11px] text-ink-soft">
+                      {s.buyerLabel ?? "agent buyer"} · {new Date(s.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="ml-3 shrink-0 text-right">
+                    <div className="font-semibold text-ok">{usd(s.agreedCents)}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-ink-soft">{s.status}</div>
                   </div>
                 </div>
-                <div className="ml-3 shrink-0 text-right">
-                  <div className="font-semibold text-ok">{usd(s.agreedCents)}</div>
-                  <div className="text-[10px] uppercase tracking-wide text-ink-soft">{s.status}</div>
-                </div>
+                {(s.status === "agreed" || s.status === "invoiced") && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={shipTrack[s.id] ?? ""}
+                      onChange={(e) => setShipTrack({ ...shipTrack, [s.id]: e.target.value })}
+                      placeholder={t("sell.tracking")}
+                      className="flex-1 rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
+                    />
+                    <input
+                      value={shipCarrier[s.id] ?? ""}
+                      onChange={(e) => setShipCarrier({ ...shipCarrier, [s.id]: e.target.value })}
+                      placeholder="UPS"
+                      className="w-20 rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
+                    />
+                    <button
+                      onClick={() =>
+                        post({ action: "ship", saleId: s.id, trackingNumber: shipTrack[s.id], carrier: shipCarrier[s.id] })
+                      }
+                      disabled={busy || !(shipTrack[s.id] ?? "").trim() || !(shipCarrier[s.id] ?? "").trim()}
+                      className="rounded-md border border-line px-3 py-1.5 text-[12px] font-medium hover:text-ink disabled:opacity-50"
+                    >
+                      {t("sell.ship")}
+                    </button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

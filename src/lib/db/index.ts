@@ -186,6 +186,9 @@ create table if not exists merchant_sales (
   status text not null default 'agreed',
   created_at timestamptz default now()
 );
+alter table merchant_sales add column if not exists buyer_order_id text;
+alter table merchant_sales add column if not exists tracking_number text;
+alter table merchant_sales add column if not exists carrier text;
 create table if not exists reorder_rules (
   id text primary key,
   user_id text not null,

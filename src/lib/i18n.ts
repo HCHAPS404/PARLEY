@@ -131,6 +131,8 @@ const en = {
   "sell.noProducts": "No products yet — add your first above",
   "sell.salesFeed": "Sales your agent closed",
   "sell.noSales": "No sales yet — they land here when your agent closes a deal",
+  "sell.tracking": "Tracking number",
+  "sell.ship": "Mark shipped",
   "space.settings.note":
     "Separate budgets, orders, and history per client or product line. Each space has its own spend policy — the agent enforces it.",
   "space.active": "Active",
@@ -407,6 +409,8 @@ const es: Record<I18nKey, string> = {
   "sell.noProducts": "Sin productos aún — añade el primero arriba",
   "sell.salesFeed": "Ventas que cerró tu agente",
   "sell.noSales": "Sin ventas aún — llegan aquí cuando tu agente cierra un trato",
+  "sell.tracking": "Número de guía",
+  "sell.ship": "Marcar enviado",
   "space.settings.note":
     "Presupuestos, órdenes e historial separados por cliente o línea de producto. Cada espacio tiene su propia política de gasto — el agente la hace cumplir.",
   "space.active": "Activo",

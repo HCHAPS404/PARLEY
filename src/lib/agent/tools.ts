@@ -20,6 +20,7 @@ import {
   reorderRules,
   sellerProducts,
   merchantProfiles,
+  users,
 } from "../db/schema";
 import { merchantAgentRound } from "./merchant";
 import { rateLimit } from "../rate-limit";
@@ -319,11 +320,21 @@ export function agentTools(ctx: AgentCtx) {
           style: sellerProfile?.style,
           sellerName: sellerProfile?.displayName,
         };
+        let buyerEmail: string | undefined;
+        if (sellerProfile) {
+          const [me] = await getDb()
+            .select({ email: users.email })
+            .from(users)
+            .where(eq(users.id, ctx.userId))
+            .limit(1);
+          buyerEmail = me?.email;
+        }
         const resp = env.mcpSecret
           ? await callMerchantOverMcp({
               ...roundArgs,
               merchantId: sellerProfile?.id,
               buyerLabel: `parley-user-${ctx.userId.slice(0, 8)}`,
+              buyerEmail,
             }).catch(
               () => merchantAgentRound(roundArgs),
             )
@@ -350,6 +361,7 @@ export function agentTools(ctx: AgentCtx) {
           merchantAction: resp.action,
           merchantPriceUsd: usd(resp.priceCents),
           merchantMessage: resp.message,
+          merchantName: sellerProfile?.displayName ?? "Merchant",
           status: session.status,
           transcript: session.transcript,
         };
@@ -465,6 +477,17 @@ export function agentTools(ctx: AgentCtx) {
           negotiated,
           productSnapshot: product,
         });
+        // Buying from a Parley seller → link the escrow to their sale ledger.
+        if (productId.startsWith("sp_")) {
+          await db.execute(sql`
+            update merchant_sales set buyer_order_id = ${order.id}
+            where id = (
+              select ms.id from merchant_sales ms
+              join seller_products sp on sp.user_id = ms.seller_user_id
+              where sp.id = ${productId} and ms.buyer_order_id is null
+              order by ms.created_at desc limit 1
+            )`);
+        }
         await audit({
           actor: "agent",
           action: "create_escrow_order",
@@ -1017,6 +1040,7 @@ async function callMerchantOverMcp(args: {
   productTitle: string;
   merchantId?: string;
   buyerLabel?: string;
+  buyerEmail?: string;
 }) {
   const res = await fetch(`${env.appUrl}/api/mcp`, {
     method: "POST",
