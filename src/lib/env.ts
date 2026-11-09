@@ -28,6 +28,7 @@ export const env = {
   databaseUrl: process.env.DATABASE_URL ?? "",
 
   cronSecret: process.env.CRON_SECRET ?? "",
+  mcpSecret: process.env.MCP_SECRET ?? "",
 
   adminUsername: process.env.ADMIN_USERNAME ?? "",
   adminEmail: process.env.ADMIN_EMAIL ?? "",

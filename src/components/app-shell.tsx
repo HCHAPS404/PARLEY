@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
+  Bell,
   Landmark,
   LogOut,
   MessagesSquare,
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/app", key: "nav.agent", icon: MessagesSquare },
   { href: "/analytics", key: "nav.analytics", icon: BarChart3 },
   { href: "/pipeline", key: "nav.pipeline", icon: Workflow },
+  { href: "/inbox", key: "nav.inbox", icon: Bell },
   { href: "/settings", key: "nav.settings", icon: Settings },
 ] as const;
 

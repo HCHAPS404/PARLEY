@@ -103,6 +103,7 @@ export const ordersLocal = pgTable("orders_local", {
   trackingStatus: text("tracking_status"), // SHIPPED|IN_TRANSIT|DELIVERED|...
   invoiceId: text("invoice_id"), // PayPal invoice issued by the merchant
   reorderRuleId: text("reorder_rule_id"), // which rule created this order, if autonomous
+  capturedCents: integer("captured_cents").notNull().default(0), // partial releases accumulate here
   amountCents: integer("amount_cents").notNull(),
   currency: text("currency").notNull().default("USD"),
   quantity: integer("quantity").notNull().default(1),

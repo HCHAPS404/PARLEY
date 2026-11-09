@@ -155,11 +155,24 @@ export function authorizeOrder(orderId: string) {
   );
 }
 
-/** Release the held funds to the seller — call only after delivery is confirmed. */
-export function captureAuthorization(authorizationId: string) {
+/** Release held funds to the seller — full or partial, per what arrived. */
+export function captureAuthorization(
+  authorizationId: string,
+  input?: { amountCents?: number; currency?: string; finalCapture?: boolean },
+) {
+  const body =
+    input?.amountCents != null
+      ? {
+          amount: {
+            currency_code: input.currency ?? "USD",
+            value: (input.amountCents / 100).toFixed(2),
+          },
+          final_capture: input.finalCapture ?? false,
+        }
+      : {};
   return paypalFetch<{ id: string; status: string }>(
     `/v2/payments/authorizations/${authorizationId}/capture`,
-    { method: "POST", body: "{}" },
+    { method: "POST", body: JSON.stringify(body) },
     crypto.randomUUID(),
   );
 }

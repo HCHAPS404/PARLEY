@@ -54,7 +54,9 @@ describe("agent tool surface", async () => {
       "list_reorder_rules",
       "merchant_quote",
       "register_tracking",
+      "release_partial",
       "request_invoice",
+      "run_rfq",
       "search_products",
       "void_escrow_order",
     ]);
@@ -98,6 +100,7 @@ describe("agent tool surface", async () => {
       ["register_tracking", { paypalOrderId: "o1", trackingNumber: "1Z", carrier: "UPS" }],
       ["request_invoice", { paypalOrderId: "o1", recipientEmail: "a@b.co" }],
       ["create_reorder_rule", { query: "boxes", maxUnitPriceUsd: 25 }],
+      ["release_partial", { paypalOrderId: "o1", percent: 50 }],
     ];
     const byName = tools as unknown as Record<string, { execute: (a: unknown) => Promise<{ error?: string }> }>;
     for (const [name, input] of gated) {

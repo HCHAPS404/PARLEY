@@ -158,6 +158,7 @@ alter table orders_local add column if not exists carrier text;
 alter table orders_local add column if not exists tracking_status text;
 alter table orders_local add column if not exists invoice_id text;
 alter table orders_local add column if not exists reorder_rule_id text;
+alter table orders_local add column if not exists captured_cents integer not null default 0;
 create table if not exists reorder_rules (
   id text primary key,
   user_id text not null,

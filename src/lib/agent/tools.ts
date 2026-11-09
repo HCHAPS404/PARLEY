@@ -276,13 +276,21 @@ export function agentTools(ctx: AgentCtx) {
           speaker: "buyer",
           text: `I can do $${offerUsd.toFixed(2)}.`,
         });
-        const resp = await merchantAgentRound({
+        // A2A over a real protocol boundary when MCP_SECRET is set: the buyer
+        // calls the merchant agent's JSON-RPC service over HTTP. In-process
+        // call remains as fallback (and for devs without the secret).
+        const roundArgs = {
           listPriceCents: session.listPriceCents,
           offerCents,
           roundsUsed: session.transcript.filter((t) => t.speaker === "buyer").length,
           productId,
           productTitle: product.title,
-        });
+        };
+        const resp = env.mcpSecret
+          ? await callMerchantOverMcp(roundArgs).catch(
+              () => merchantAgentRound(roundArgs),
+            )
+          : await merchantAgentRound(roundArgs);
         session.transcript.push({ speaker: "merchant", text: resp.message });
         if (resp.action === "accept") {
           session.status = "agreed";
@@ -565,6 +573,140 @@ export function agentTools(ctx: AgentCtx) {
       },
     }),
 
+    release_partial: tool({
+      description:
+        "Release part of the escrow — partial delivery confirmed (e.g. 3 of 5 boxes arrived). Releases a percentage or amount of the hold; the rest stays held until the remainder arrives.",
+      inputSchema: z.object({
+        paypalOrderId: z.string(),
+        percent: z.number().min(1).max(100).optional().describe("Percent of the hold to release"),
+        amountUsd: z.number().positive().optional().describe("Exact amount to release instead"),
+        finalCapture: z.boolean().default(false).describe("True releases this and ends the hold"),
+      }),
+      execute: async ({ paypalOrderId, percent, amountUsd, finalCapture }) => {
+        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        await ensureDb();
+        const db = getDb();
+        const [row] = await db
+          .select()
+          .from(ordersLocal)
+          .where(
+            and(
+              eq(ordersLocal.paypalOrderId, paypalOrderId),
+              eq(ordersLocal.userId, ctx.userId),
+              eq(ordersLocal.spaceId, ctx.spaceId),
+            ),
+          )
+          .limit(1);
+        if (!row) return { error: "Order not found" };
+        if (["captured", "voided", "cancelled", "failed"].includes(row.status))
+          return { error: `Order already ${row.status} — nothing to release` };
+        let authId = row.authorizationId;
+        if (!authId) {
+          const order = await getOrder(paypalOrderId);
+          authId = order.purchase_units?.[0]?.payments?.authorizations?.[0]?.id ?? null;
+          if (!authId) return { error: "No authorization hold on this order" };
+        }
+        const held = row.amountCents - (row.capturedCents ?? 0);
+        const releaseCents = amountUsd
+          ? toCents(amountUsd)
+          : Math.round(row.amountCents * ((percent ?? 100) / 100));
+        if (releaseCents <= 0 || releaseCents > held)
+          return { error: `Release must be between $0.01 and the remaining hold $${(held / 100).toFixed(2)}` };
+        const isFinal = finalCapture || releaseCents >= held;
+        const cap = await captureAuthorization(authId, {
+          amountCents: releaseCents,
+          currency: row.currency,
+          finalCapture: isFinal,
+        });
+        const newCaptured = (row.capturedCents ?? 0) + releaseCents;
+        await db
+          .update(ordersLocal)
+          .set({
+            capturedCents: newCaptured,
+            status: isFinal ? "captured" : row.status,
+            updatedAt: new Date(),
+          })
+          .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
+        if (isFinal && row.vendor) await bumpVendorScore(db, row.vendor, "on_time");
+        await audit({
+          actor: "system",
+          action: "escrow_partial_release",
+          userId: ctx.userId, spaceId: ctx.spaceId,
+          input: { paypalOrderId, releaseCents, finalCapture: isFinal },
+          output: cap,
+          rationale: "Partial delivery — release proportional to what arrived",
+        });
+        return {
+          releasedUsd: usd(releaseCents),
+          remainingHeldUsd: usd(row.amountCents - newCaptured),
+          status: isFinal ? "captured" : "partial",
+          captureId: cap.id,
+        };
+      },
+    }),
+
+    run_rfq: tool({
+      description:
+        "Request-for-quotation: send the same purchase need to multiple merchant agents in parallel and rank their sealed quotes — real procurement, not single-vendor haggling. The winning quote persists as an accepted negotiation you can buy via create_escrow_order.",
+      inputSchema: z.object({
+        productId: z.string().describe("Product id from search_products — quotes run per vendor offer"),
+        offerUsd: z.number().positive().describe("Your opening offer to each vendor"),
+      }),
+      execute: async ({ productId, offerUsd }) => {
+        await ensureDb();
+        const product = await cacheGet(ctx.userId, productId);
+        if (!product || product.bestPriceCents == null)
+          return { error: "Product not in search context — run search_products first" };
+        const vendors = (product.offers.length ? product.offers : [{ domain: product.merchant ?? "vendor", priceCents: product.bestPriceCents }]).slice(0, 3);
+        const offerCents = toCents(offerUsd);
+        const quotes = await Promise.all(
+          vendors.map(async (v) => {
+            const resp = env.mcpSecret
+              ? await callMerchantOverMcp({
+                  productId, productTitle: product.title,
+                  listPriceCents: v.priceCents, offerCents, roundsUsed: 1,
+                }).catch(() => merchantAgentRound({
+                  productId, productTitle: product.title,
+                  listPriceCents: v.priceCents, offerCents, roundsUsed: 1,
+                }))
+              : await merchantAgentRound({
+                  productId, productTitle: product.title,
+                  listPriceCents: v.priceCents, offerCents, roundsUsed: 1,
+                });
+            return { vendor: v.domain, listUsd: usd(v.priceCents), action: resp.action, quoteUsd: usd(resp.priceCents), quoteCents: resp.priceCents, message: resp.message };
+          }),
+        );
+        const winner = quotes
+          .filter((q) => q.action !== "walk")
+          .sort((a, b) => a.quoteCents - b.quoteCents)[0] ?? null;
+        // Persist the winning quote as an accepted negotiation — create_escrow_order honors it.
+        let negotiationId: string | null = null;
+        if (winner) {
+          const session = {
+            id: crypto.randomUUID(),
+            productId,
+            listPriceCents: product.bestPriceCents,
+            agreedCents: winner.quoteCents,
+            status: "agreed" as const,
+            transcript: [
+              { speaker: "buyer" as const, text: `RFQ to ${quotes.length} vendors — I can do $${offerUsd.toFixed(2)}.` },
+              { speaker: "merchant" as const, text: `[${winner.vendor}] ${winner.message}` },
+            ],
+          };
+          await negPut(ctx.userId, ctx.spaceId, session);
+          negotiationId = session.id;
+        }
+        await audit({
+          actor: "agent", action: "run_rfq",
+          userId: ctx.userId, spaceId: ctx.spaceId,
+          input: { productId, offerUsd, vendors: vendors.map((v) => v.domain) },
+          output: { quotes: quotes.map((q) => ({ vendor: q.vendor, action: q.action, quoteUsd: q.quoteUsd })) },
+          rationale: "Sealed-bid quotation across merchants — best quote wins",
+        });
+        return { quotes, winner: winner?.vendor ?? null, negotiationId };
+      },
+    }),
+
     get_escrow_status: tool({
       description: "Check the live PayPal status of an escrow order.",
       inputSchema: z.object({ paypalOrderId: z.string() }),
@@ -809,6 +951,35 @@ export function agentTools(ctx: AgentCtx) {
     // they read and write the workspace owner's PayPal account.
     ...(ctx.role === "admin" ? paypalTools() : {}),
   };
+}
+
+/** JSON-RPC call to the merchant agent service — the literal A2A boundary. */
+async function callMerchantOverMcp(args: {
+  listPriceCents: number;
+  offerCents: number;
+  roundsUsed: number;
+  productId: string;
+  productTitle: string;
+}) {
+  const res = await fetch(`${env.appUrl}/api/mcp`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${env.mcpSecret}`,
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: crypto.randomUUID(),
+      method: "tools/call",
+      params: { name: "merchant_quote", arguments: args },
+    }),
+  });
+  const json = (await res.json()) as {
+    result?: { action: "accept" | "counter" | "walk"; priceCents: number; message: string };
+    error?: { message: string };
+  };
+  if (!res.ok || !json.result) throw new Error(json.error?.message ?? `MCP ${res.status}`);
+  return json.result;
 }
 
 function approveUrlFor(orderId: string) {
