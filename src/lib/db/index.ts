@@ -153,6 +153,7 @@ alter table audit_log add column if not exists space_id text;
 alter table messages add column if not exists space_id text;
 alter table negotiations add column if not exists space_id text;
 alter table alerts add column if not exists space_id text;
+alter table users add column if not exists persona text not null default 'buyer';
 alter table orders_local add column if not exists tracking_number text;
 alter table orders_local add column if not exists carrier text;
 alter table orders_local add column if not exists tracking_status text;

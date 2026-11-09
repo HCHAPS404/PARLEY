@@ -11,6 +11,7 @@ export default function LoginPage() {
   const { t, lang, setLang } = usePrefs();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
+  const [persona, setPersona] = useState<"buyer" | "seller">("buyer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export default function LoginPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
-        mode === "login" ? { email, password } : { username, email, password },
+        mode === "login" ? { email, password } : { username, email, password, persona },
       ),
     });
     const data = await res.json().catch(() => ({}));
@@ -34,7 +35,8 @@ export default function LoginPage() {
       setError(data.error ?? t("common.error"));
       return;
     }
-    router.push("/app");
+    const me = await fetch("/api/auth/me").then((r) => (r.ok ? r.json() : null));
+    router.push(me?.user?.persona === "seller" ? "/seller" : "/app");
     router.refresh();
   };
 
@@ -134,6 +136,30 @@ export default function LoginPage() {
               placeholder={mode === "register" ? "min. 8 characters" : "••••••••"}
             />
           </label>
+
+          {mode === "register" && (
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              {(["buyer", "seller"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPersona(p)}
+                  className={`rounded-lg border p-3 text-left transition-colors ${
+                    persona === p
+                      ? "border-accent bg-accent-mist/50"
+                      : "border-line bg-paper hover:border-accent/40"
+                  }`}
+                >
+                  <div className="text-[13px] font-semibold">
+                    {t(`login.persona.${p}` as never)}
+                  </div>
+                  <div className="mt-0.5 text-[11px] leading-4 text-ink-soft">
+                    {t(`login.persona.${p}Sub` as never)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 rounded-lg border border-danger/20 bg-danger-soft px-3 py-2 text-[12px] text-danger">

@@ -6,8 +6,9 @@ import {
   newSessionToken,
   SESSION_COOKIE,
 } from "@/lib/auth";
-import { getDb } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { ensureDb, getDb } from "@/lib/db";
+import { merchantProfiles, users } from "@/lib/db/schema";
+import { randomUUID } from "crypto";
 import { or, eq } from "drizzle-orm";
 import { audit } from "@/lib/audit";
 import { createSpace } from "@/lib/spaces";
@@ -20,6 +21,7 @@ const body = z.object({
     .regex(/^[a-zA-Z0-9_-]+$/, "letters, numbers, _ and - only"),
   email: z.string().email(),
   password: z.string().min(8, "at least 8 characters"),
+  persona: z.enum(["buyer", "seller"]).default("buyer"),
 });
 
 /** Public registration — always creates a *demo* account. Admins are env-seeded. */
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
       { error: parsed.error.issues[0]?.message ?? "Invalid request" },
       { status: 400 },
     );
-  const { username, email, password } = parsed.data;
+  const { username, email, password, persona } = parsed.data;
 
   const clash = await getDb()
     .select({ id: users.id })
@@ -43,8 +45,17 @@ export async function POST(req: Request) {
       { status: 409 },
     );
 
-  const userId = await createUser({ username, email, password });
+  const userId = await createUser({ username, email, password, persona });
   await createSpace(userId, "Personal");
+  // Sellers get their merchant agent deployed at signup — ready to sell.
+  if (persona === "seller") {
+    await ensureDb();
+    await getDb().insert(merchantProfiles).values({
+      id: `merch_${randomUUID().slice(0, 8)}`,
+      userId,
+      displayName: `${username}'s store`,
+    });
+  }
   const token = newSessionToken();
   await createSession(userId, token, {
     ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),

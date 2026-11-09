@@ -15,7 +15,8 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  role: text("role").notNull().default("demo"), // admin|demo
+  role: text("role").notNull().default("demo"), // admin|demo — permission tier
+  persona: text("persona").notNull().default("buyer"), // buyer|seller — product side
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
 });

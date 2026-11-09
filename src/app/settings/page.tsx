@@ -23,7 +23,7 @@ async function AuthedSettings() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   return (
-    <AppShell user={{ username: user.username, role: user.role }}>
+    <AppShell user={{ username: user.username, role: user.role, persona: user.persona }}>
       <SettingsInner user={{ username: user.username, email: user.email, role: user.role }} />
     </AppShell>
   );

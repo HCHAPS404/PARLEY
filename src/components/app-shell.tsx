@@ -13,6 +13,7 @@ import {
   Radio,
   Settings,
   ShieldCheck,
+  Store,
   Sun,
   Workflow,
 } from "lucide-react";
@@ -20,10 +21,16 @@ import { Logo } from "./brand";
 import { SpaceSwitcher } from "./space-switcher";
 import { usePrefs } from "./preferences";
 
-const NAV = [
+const NAV_BUYER = [
   { href: "/app", key: "nav.agent", icon: MessagesSquare },
   { href: "/analytics", key: "nav.analytics", icon: BarChart3 },
   { href: "/pipeline", key: "nav.pipeline", icon: Workflow },
+  { href: "/inbox", key: "nav.inbox", icon: Bell },
+  { href: "/settings", key: "nav.settings", icon: Settings },
+] as const;
+
+const NAV_SELLER = [
+  { href: "/seller", key: "nav.seller", icon: Store },
   { href: "/inbox", key: "nav.inbox", icon: Bell },
   { href: "/settings", key: "nav.settings", icon: Settings },
 ] as const;
@@ -32,7 +39,7 @@ export function AppShell({
   user,
   children,
 }: {
-  user: { username: string; role: string };
+  user: { username: string; role: string; persona?: string };
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -66,7 +73,7 @@ export function AppShell({
         <SpaceSwitcher />
 
         <nav className="flex flex-col gap-1 p-3 text-sm">
-          {NAV.map(({ href, key, icon: Icon }) => {
+          {(user.persona === "seller" ? NAV_SELLER : NAV_BUYER).map(({ href, key, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
               <Link

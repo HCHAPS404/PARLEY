@@ -27,6 +27,7 @@ export type SessionUser = {
   username: string;
   email: string;
   role: "admin" | "demo";
+  persona: "buyer" | "seller";
 };
 
 // ─── Passwords ──────────────────────────────────────────────────────
@@ -100,6 +101,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     username: row.user.username,
     email: row.user.email,
     role: row.user.role === "admin" ? "admin" : "demo",
+    persona: row.user.persona === "seller" ? "seller" : "buyer",
   };
 }
 
@@ -118,6 +120,7 @@ export async function createUser(input: {
   email: string;
   password: string;
   role?: "admin" | "demo";
+  persona?: "buyer" | "seller";
 }) {
   await ensureDb();
   const id = randomUUID();
@@ -129,6 +132,7 @@ export async function createUser(input: {
       email: input.email.toLowerCase(),
       passwordHash: hashPassword(input.password),
       role: input.role ?? "demo",
+      persona: input.persona ?? "buyer",
     });
   return id;
 }

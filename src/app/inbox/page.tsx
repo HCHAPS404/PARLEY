@@ -23,7 +23,7 @@ async function AuthedInbox() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   return (
-    <AppShell user={{ username: user.username, role: user.role }}>
+    <AppShell user={{ username: user.username, role: user.role, persona: user.persona }}>
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="border-b border-line px-6 py-3">
           <h1 className="font-display text-lg font-semibold">Approvals</h1>

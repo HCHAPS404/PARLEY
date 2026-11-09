@@ -24,7 +24,7 @@ async function AuthedApp() {
   if (!user) redirect("/login");
 
   return (
-    <AppShell user={{ username: user.username, role: user.role }}>
+    <AppShell user={{ username: user.username, role: user.role, persona: user.persona }}>
       <ChatArea user={{ username: user.username, role: user.role }} />
     </AppShell>
   );
