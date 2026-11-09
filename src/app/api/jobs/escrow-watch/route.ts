@@ -242,7 +242,7 @@ export async function GET(req: Request) {
     }
   }
 
-  // ── Price watches — market signals land in the inbox ──
+  // ── Market watches — deals and drops land in the inbox ──
   const watches = await db
     .select()
     .from(priceWatches)
@@ -250,36 +250,59 @@ export async function GET(req: Request) {
   let watchesChecked = 0;
   for (const w of watches) {
     try {
-      const hist = await priceHistory(w.productId, 7);
-      const latest = hist.points.at(-1)?.cents ?? hist.stats?.currentCents;
+      let latest: number | null = null;
+      let matchTitle = w.title;
+      let vendor: string | null = null;
+      if (w.productId) {
+        // Single product — real 90-day price trajectory.
+        const hist = await priceHistory(w.productId, 7);
+        latest = hist.points.at(-1)?.cents ?? hist.stats?.currentCents ?? null;
+      } else if (w.query) {
+        // Query watch — the best live offer for the whole search.
+        const { products } = await searchProducts({ query: w.query, limit: 5 });
+        const best = products
+          .filter((p) => p.bestPriceCents != null)
+          .sort((a, b) => a.bestPriceCents! - b.bestPriceCents!)[0];
+        if (best?.bestPriceCents != null) {
+          latest = best.bestPriceCents;
+          matchTitle = best.title;
+          vendor = best.merchant ?? null;
+        }
+      }
       watchesChecked++;
       if (latest == null) continue;
       const triggered =
         latest <= (w.thresholdCents ?? Math.round(w.baselineCents * 0.95));
       if (triggered) {
+        const kind = w.query ? "deal_found" : "price_drop";
         const [existing] = await db
           .select({ id: alerts.id })
           .from(alerts)
           .where(
             and(
-              eq(alerts.kind, "price_drop"),
+              eq(alerts.kind, kind),
               eq(alerts.status, "open"),
               sql`${alerts.payload}->>'watchId' = ${w.id}`,
             ),
           )
           .limit(1);
         if (!existing) {
+          const dropPct = Math.round((1 - latest / w.baselineCents) * 100);
           await db.insert(alerts).values({
-            kind: "price_drop",
+            kind,
             spaceId: w.spaceId,
             payload: {
               watchId: w.id,
               productId: w.productId,
-              title: w.title,
+              query: w.query,
+              title: matchTitle,
+              vendor,
+              priceUsd: latest / 100,
               baselineUsd: w.baselineCents / 100,
-              nowUsd: latest / 100,
-              currency: w.currency,
-              dropPct: Math.round((1 - latest / w.baselineCents) * 100),
+              dropPct,
+              reason: w.query
+                ? `Better offer for "${w.query}" — $${(latest / 100).toFixed(2)} @ ${vendor ?? "merchant"} (was $${(w.baselineCents / 100).toFixed(2)})`
+                : `${w.title} dropped ${dropPct}% — now $${(latest / 100).toFixed(2)}`,
             },
           });
           summary.alerts++;

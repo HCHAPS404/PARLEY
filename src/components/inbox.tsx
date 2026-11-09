@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  Bell, CheckCircle2, PackageCheck, RefreshCcw, TriangleAlert, XCircle, ExternalLink, Loader2,
+  Bell, CheckCircle2, PackageCheck, RefreshCcw, Tag, TriangleAlert, TrendingDown, XCircle, ExternalLink, Loader2,
 } from "lucide-react";
 import { usePrefs } from "./preferences";
 
@@ -19,6 +19,8 @@ const KIND_META: Record<string, { icon: typeof Bell; label: string; tone: string
   reorder_ready: { icon: RefreshCcw, label: "Reorder proposal", tone: "text-warn" },
   delivery_overdue: { icon: TriangleAlert, label: "Escrow watch", tone: "text-danger" },
   sale_closed: { icon: CheckCircle2, label: "Sale closed", tone: "text-ok" },
+  price_drop: { icon: TrendingDown, label: "Price drop", tone: "text-accent" },
+  deal_found: { icon: Tag, label: "Deal found", tone: "text-ok" },
 };
 
 export function InboxPanel({ role }: { role: string }) {
@@ -138,7 +140,7 @@ export function InboxPanel({ role }: { role: string }) {
                   {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><ExternalLink className="h-3.5 w-3.5" /> {t("inbox.approvePaypal")}</>}
                 </button>
               )}
-              {(a.kind === "reorder_ready" || a.kind === "delivery_overdue" || a.kind === "delivered" || a.kind === "sale_closed") && (
+              {(a.kind === "reorder_ready" || a.kind === "delivery_overdue" || a.kind === "delivered" || a.kind === "sale_closed" || a.kind === "price_drop" || a.kind === "deal_found") && (
                 <button
                   onClick={() => act(a.id, "dismiss")}
                   disabled={busy === a.id}

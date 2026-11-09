@@ -158,7 +158,8 @@ export const priceWatches = pgTable("price_watches", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   spaceId: text("space_id"),
-  productId: text("product_id").notNull(),
+  productId: text("product_id"), // single-product watch — null for query watches
+  query: text("query"), // market watch — best offer matching this search query
   title: text("title").notNull(),
   baselineCents: integer("baseline_cents").notNull(), // price when the watch was armed
   thresholdCents: integer("threshold_cents"), // alert-below target, if the user named one

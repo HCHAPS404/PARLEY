@@ -35,8 +35,36 @@ export async function GET() {
     .from(sellerEvents)
     .where(eq(sellerEvents.sellerUserId, user.id))
     .orderBy(desc(sellerEvents.createdAt))
-    .limit(30);
-  return NextResponse.json({ profile: profile ?? null, products, sales, events });
+    .limit(300);
+
+  // Leads — a buyer who negotiated but never closed is a warm prospect. Events
+  // arrive newest-first, so the first event per (buyer, product) is the latest
+  // state of that conversation; anything that isn't 'accept' is still open.
+  const seen = new Set<string>();
+  const leads = [];
+  for (const e of events) {
+    const key = `${e.buyerLabel ?? "?"}|${e.productTitle}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (e.kind === "accept") continue;
+    leads.push({
+      buyerLabel: e.buyerLabel,
+      productTitle: e.productTitle,
+      kind: e.kind,
+      offerCents: e.offerCents,
+      counterCents: e.counterCents,
+      at: e.createdAt,
+    });
+    if (leads.length >= 10) break;
+  }
+
+  return NextResponse.json({
+    profile: profile ?? null,
+    products,
+    sales,
+    events: events.slice(0, 30),
+    leads,
+  });
 }
 
 /** Configure the merchant agent and stock the catalog. */

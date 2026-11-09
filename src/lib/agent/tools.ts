@@ -1090,23 +1090,31 @@ export function agentTools(ctx: AgentCtx) {
 
     track_price: tool({
       description:
-        "Arm a price watch on a product from search results — the watchdog polls its Channel3 price history and alerts the Inbox when it drops ≥5% or under the target you name. Set-and-forget market tracking.",
+        "Arm a market watch — the watchdog then polls Channel3 and alerts the Inbox on a drop. Two modes: productId watches one product's price history (≥5% or under your target); query watches a whole search for a better offer appearing. Set-and-forget deal tracking.",
       inputSchema: z.object({
-        productId: z.string().describe("Product id from search_products or market_report"),
+        productId: z
+          .string()
+          .optional()
+          .describe("Product id from search_products or market_report — watch this item"),
+        query: z
+          .string()
+          .optional()
+          .describe("Search query — alert when a better offer appears for it"),
         alertBelowUsd: z
           .number()
           .positive()
           .optional()
           .describe("Alert when the price falls under this"),
       }),
-      execute: async ({ productId, alertBelowUsd }) => {
+      execute: async ({ productId, query, alertBelowUsd }) => {
+        if (!productId && !query)
+          return { error: "Pass a productId (watch one item) or a query (watch the market)" };
+        if (productId && query)
+          return { error: "Pick one — product watch or query watch, not both" };
         await ensureDb();
         const db = getDb();
-        const product = await cacheGet(ctx.userId, productId);
-        if (!product || product.bestPriceCents == null)
-          return { error: "Product not in search context — run search_products first" };
         const active = await db
-          .select({ productId: priceWatches.productId })
+          .select({ productId: priceWatches.productId, query: priceWatches.query })
           .from(priceWatches)
           .where(
             and(
@@ -1115,39 +1123,68 @@ export function agentTools(ctx: AgentCtx) {
               eq(priceWatches.active, true),
             ),
           );
-        if (active.some((w) => w.productId === productId))
-          return { error: "Already watching this product" };
         const cap = ctx.role === "admin" ? 25 : 3;
         if (active.length >= cap)
           return { error: `Watch limit reached (${cap}) — stop a watch first` };
+
+        let title: string;
+        let baselineCents: number;
+        let currency = "USD";
+        if (productId) {
+          if (active.some((w) => w.productId === productId))
+            return { error: "Already watching this product" };
+          const product = await cacheGet(ctx.userId, productId);
+          if (!product || product.bestPriceCents == null)
+            return { error: "Product not in search context — run search_products first" };
+          title = product.title;
+          baselineCents = product.bestPriceCents;
+          currency = product.currency;
+          void startPriceTracking(productId);
+        } else {
+          const q = query!;
+          if (active.some((w) => w.query === q))
+            return { error: "Already watching that query" };
+          // Search now to pin the baseline — and prove the query yields offers.
+          const { products, error } = await searchProducts({ query: q, limit: 5 });
+          if (error) return { error };
+          const best = products
+            .map((p) => p.bestPriceCents)
+            .filter((c): c is number => c != null)
+            .sort((a, b) => a - b)[0];
+          if (best == null)
+            return { error: "No offers for that query — nothing to watch yet" };
+          title = q;
+          baselineCents = best;
+        }
+
         const id = `pw_${crypto.randomUUID().slice(0, 8)}`;
         await db.insert(priceWatches).values({
           id,
           userId: ctx.userId,
           spaceId: ctx.spaceId,
-          productId,
-          title: product.title,
-          baselineCents: product.bestPriceCents,
+          productId: productId ?? null,
+          query: query ?? null,
+          title,
+          baselineCents,
           thresholdCents: alertBelowUsd ? toCents(alertBelowUsd) : null,
-          lastCents: product.bestPriceCents,
-          currency: product.currency,
+          lastCents: baselineCents,
+          currency,
         });
-        void startPriceTracking(productId);
         await audit({
           actor: "agent",
           action: "price_watch_armed",
           userId: ctx.userId,
           spaceId: ctx.spaceId,
-          input: { productId, alertBelowUsd },
+          input: { productId, query, alertBelowUsd },
           output: { watchId: id },
-          rationale: "Watchdog polls Channel3 price history for drops",
+          rationale: "Watchdog polls the market for a better deal",
         });
         return {
           watchId: id,
-          title: product.title,
-          watchingFromUsd: usd(product.bestPriceCents),
+          title,
+          watchingFromUsd: usd(baselineCents),
           alertBelowUsd: alertBelowUsd ?? null,
-          note: "The watchdog checks the price trend — a drop lands in your Inbox.",
+          note: "The watchdog checks the market — a better deal lands in your Inbox.",
         };
       },
     }),
@@ -1170,6 +1207,7 @@ export function agentTools(ctx: AgentCtx) {
         return {
           watches: rows.map((w) => ({
             id: w.id,
+            kind: w.query ? "query" : "product",
             title: w.title,
             baselineUsd: usd(w.baselineCents),
             lastUsd: w.lastCents != null ? usd(w.lastCents) : null,

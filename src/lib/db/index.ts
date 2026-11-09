@@ -226,6 +226,8 @@ create table if not exists price_watches (
   active boolean not null default true,
   created_at timestamptz default now()
 );
+alter table price_watches alter column product_id drop not null;
+alter table price_watches add column if not exists query text;
 `;
 
 /** Idempotent schema bootstrap — runs once per process, lazily on first use. */

@@ -11,6 +11,7 @@ interface Profile { id: string; displayName: string; floorRatioPct: number; styl
 interface Product { id: string; title: string; priceCents: number; stock: number }
 interface Sale { id: string; productTitle: string; agreedCents: number; buyerLabel: string | null; trackingNumber?: string | null; status: string; createdAt: string }
 interface SellerEvent { id: string; productTitle: string; buyerLabel: string | null; kind: string; offerCents: number | null; counterCents: number | null; message: string | null; createdAt: string }
+interface Lead { buyerLabel: string | null; productTitle: string; kind: string; offerCents: number | null; counterCents: number | null; at: string }
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
 
@@ -23,7 +24,7 @@ const EV_KEY = {
 
 export function SellerDashboard() {
   const { t } = usePrefs();
-  const [data, setData] = useState<{ profile: Profile | null; products: Product[]; sales: Sale[]; events: SellerEvent[] } | null>(null);
+  const [data, setData] = useState<{ profile: Profile | null; products: Product[]; sales: Sale[]; events: SellerEvent[]; leads: Lead[] } | null>(null);
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
   const [shipTrack, setShipTrack] = useState<Record<string, string>>({});
@@ -58,7 +59,7 @@ export function SellerDashboard() {
       </div>
     );
 
-  const { profile, products, sales, events } = data;
+  const { profile, products, sales, events, leads } = data;
   const revenue = sales.reduce((s, x) => s + x.agreedCents, 0);
 
   if (!profile)
@@ -247,6 +248,39 @@ export function SellerDashboard() {
           </ul>
         )}
       </div>
+      {/* Interested buyers — negotiated but haven't closed */}
+      <div className="rounded-xl border border-line bg-card p-4">
+        <h3 className="flex items-center gap-2 font-display text-sm font-semibold">
+          <TrendingUp className="h-4 w-4 text-accent" /> {t("sell.leads")}
+        </h3>
+        {!leads?.length ? (
+          <p className="mt-3 text-[12px] text-ink-soft">{t("sell.noLeads")}</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-line/60">
+            {leads.map((l, i) => (
+              <li key={i} className="flex items-center justify-between gap-3 py-2 text-[13px]">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{l.productTitle}</div>
+                  <div className="text-[11px] text-ink-soft">
+                    {l.buyerLabel ?? "agent buyer"} · {new Date(l.at).toLocaleString()}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 text-[12px]">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    l.kind === "walk" ? "bg-danger/10 text-danger" : "bg-accent/10 text-accent"
+                  }`}>
+                    {t(EV_KEY[l.kind as keyof typeof EV_KEY] ?? "sell.ev.offer")}
+                  </span>
+                  {(l.counterCents ?? l.offerCents) != null && (
+                    <span className="font-semibold">{usd((l.counterCents ?? l.offerCents)!)}</span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {/* Agent activity — every round the agent negotiates, live */}
       <div className="rounded-xl border border-line bg-card p-4">
         <h3 className="flex items-center gap-2 font-display text-sm font-semibold">
