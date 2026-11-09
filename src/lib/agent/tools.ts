@@ -17,8 +17,9 @@ import {
   vendorScores,
   productCache as productCacheTable,
   negotiations as negotiationsTable,
+  reorderRules,
 } from "../db/schema";
-import { merchantRound } from "./merchant";
+import { merchantAgentRound } from "./merchant";
 import { rateLimit } from "../rate-limit";
 import { env } from "../env";
 
@@ -275,10 +276,12 @@ export function agentTools(ctx: AgentCtx) {
           speaker: "buyer",
           text: `I can do $${offerUsd.toFixed(2)}.`,
         });
-        const resp = merchantRound({
+        const resp = await merchantAgentRound({
           listPriceCents: session.listPriceCents,
           offerCents,
           roundsUsed: session.transcript.filter((t) => t.speaker === "buyer").length,
+          productId,
+          productTitle: product.title,
         });
         session.transcript.push({ speaker: "merchant", text: resp.message });
         if (resp.action === "accept") {
@@ -616,6 +619,187 @@ export function agentTools(ctx: AgentCtx) {
             status: r.status,
             negotiated: r.negotiated,
             createdAt: r.createdAt,
+          })),
+        };
+      },
+    }),
+
+    register_tracking: tool({
+      description:
+        "Attach carrier tracking to an escrow order — the watchdog then watches the shipment and flags the moment it arrives, so payment releases only on confirmed delivery.",
+      inputSchema: z.object({
+        paypalOrderId: z.string(),
+        trackingNumber: z.string(),
+        carrier: z.string().describe("Carrier code — UPS, USPS, FEDEX, DHL…"),
+      }),
+      execute: async ({ paypalOrderId, trackingNumber, carrier }) => {
+        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        await ensureDb();
+        const db = getDb();
+        const [row] = await db
+          .select()
+          .from(ordersLocal)
+          .where(
+            and(
+              eq(ordersLocal.paypalOrderId, paypalOrderId),
+              eq(ordersLocal.userId, ctx.userId),
+              eq(ordersLocal.spaceId, ctx.spaceId),
+            ),
+          )
+          .limit(1);
+        if (!row) return { error: "Order not found" };
+        const carrierCode = carrier.toUpperCase().replace(/\s+/g, "_");
+        // Register on PayPal's side too — best effort (sandbox carriers vary).
+        let note = "saved locally";
+        try {
+          const t = paypalTools()["create_shipment_tracking"] as {
+            execute?: (a: unknown) => Promise<unknown>;
+          };
+          await t.execute?.({
+            transaction_id: row.authorizationId ?? paypalOrderId,
+            tracking_number: trackingNumber,
+            carrier: carrierCode,
+            status: "SHIPPED",
+          });
+          note = "registered with PayPal";
+        } catch { /* local tracking still works via watchdog */ }
+        await db
+          .update(ordersLocal)
+          .set({ trackingNumber, carrier: carrierCode, trackingStatus: "SHIPPED", updatedAt: new Date() })
+          .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
+        await audit({
+          actor: "agent", action: "tracking_registered",
+          userId: ctx.userId, spaceId: ctx.spaceId,
+          input: { paypalOrderId, trackingNumber, carrier: carrierCode },
+          output: { note },
+          rationale: "Shipment-aware escrow — watchdog polls the carrier until DELIVERED",
+        });
+        return {
+          status: "tracking", trackingNumber, carrier: carrierCode,
+          note: `Escrow now watches this shipment (${note}) — release is flagged the moment it lands.`,
+        };
+      },
+    }),
+
+    request_invoice: tool({
+      description:
+        "Ask the merchant to issue a formal PayPal invoice for an escrow order — the paper trail for the books. Creates and sends it to the billing email.",
+      inputSchema: z.object({
+        paypalOrderId: z.string(),
+        recipientEmail: z.string().email().describe("Billing email the invoice is addressed to"),
+      }),
+      execute: async ({ paypalOrderId, recipientEmail }) => {
+        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        await ensureDb();
+        const db = getDb();
+        const [row] = await db
+          .select()
+          .from(ordersLocal)
+          .where(
+            and(
+              eq(ordersLocal.paypalOrderId, paypalOrderId),
+              eq(ordersLocal.userId, ctx.userId),
+              eq(ordersLocal.spaceId, ctx.spaceId),
+            ),
+          )
+          .limit(1);
+        if (!row) return { error: "Order not found" };
+        if (row.invoiceId) return { invoiceId: row.invoiceId, note: "Invoice already issued for this order." };
+        try {
+          const tools = paypalTools() as Record<string, { execute?: (a: unknown) => Promise<unknown> }>;
+          const numRes = (await tools["generate_invoice_number"]?.execute?.({})) as { invoice_number?: string } | undefined;
+          const invoiceNumber = numRes?.invoice_number;
+          const value = (row.amountCents / 100).toFixed(2);
+          const created = (await tools["create_invoice"]?.execute?.({
+            detail: {
+              invoice_number: invoiceNumber,
+              currency_code: row.currency ?? "USD",
+              note: `Parley procurement — escrow order ${paypalOrderId}`,
+              payment_term: { term_type: "DUE_ON_RECEIPT" },
+            },
+            primary_recipients: [{ billing_info: { email_address: recipientEmail } }],
+            items: [{
+              name: row.title.slice(0, 127),
+              quantity: String(row.quantity ?? 1),
+              unit_amount: { currency_code: row.currency ?? "USD", value },
+            }],
+            amount: { breakdown: { item_total: { currency_code: row.currency ?? "USD", value: (row.amountCents * (row.quantity ?? 1) / 100).toFixed(2) } } },
+          })) as { id?: string } | undefined;
+          const invoiceId = created?.id;
+          if (!invoiceId) return { error: "PayPal did not return an invoice id" };
+          await tools["send_invoice"]?.execute?.({ invoice_id: invoiceId });
+          await db
+            .update(ordersLocal)
+            .set({ invoiceId, updatedAt: new Date() })
+            .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
+          await audit({
+            actor: "merchant", action: "invoice_issued",
+            userId: ctx.userId, spaceId: ctx.spaceId,
+            input: { paypalOrderId, recipientEmail },
+            output: { invoiceId, invoiceNumber },
+            rationale: "Formal invoice for the escrowed purchase — procurement paper trail",
+          });
+          return { invoiceId, invoiceNumber, status: "sent", note: "Invoice issued and sent by the merchant." };
+        } catch (e) {
+          return { error: `Invoice failed: ${e instanceof Error ? e.message : String(e)}` };
+        }
+      },
+    }),
+
+    create_reorder_rule: tool({
+      description:
+        "Autonomous procurement: set a recurring reorder rule (e.g. 'reorder shipping boxes every 30 days under $25'). The watchdog checks it on schedule, searches, applies policy, and prepares the order — human approves on PayPal.",
+      inputSchema: z.object({
+        query: z.string().describe("What to reorder, as a search query"),
+        maxUnitPriceUsd: z.number().positive().describe("Never buy above this unit price"),
+        intervalDays: z.number().int().min(1).max(365).default(30),
+        quantity: z.number().int().min(1).max(10).default(1),
+        vendorDomain: z.string().optional().describe("Pin to a specific vendor"),
+      }),
+      execute: async ({ query, maxUnitPriceUsd, intervalDays, quantity, vendorDomain }) => {
+        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        await ensureDb();
+        const rule = {
+          id: `rule_${crypto.randomUUID().slice(0, 8)}`,
+          userId: ctx.userId,
+          spaceId: ctx.spaceId,
+          query,
+          vendorDomain: vendorDomain ?? null,
+          quantity,
+          maxUnitPriceCents: toCents(maxUnitPriceUsd),
+          intervalDays,
+          enabled: true,
+        };
+        await getDb().insert(reorderRules).values(rule);
+        await audit({
+          actor: "user", action: "reorder_rule_created",
+          userId: ctx.userId, spaceId: ctx.spaceId,
+          input: rule,
+          rationale: "Recurring procurement — agent reorders within policy, human approves",
+        });
+        return { ruleId: rule.id, status: "armed", everyDays: intervalDays, maxUsd: maxUnitPriceUsd };
+      },
+    }),
+
+    list_reorder_rules: tool({
+      description: "List your active reorder rules.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        await ensureDb();
+        const rows = await getDb()
+          .select()
+          .from(reorderRules)
+          .where(
+            and(
+              eq(reorderRules.userId, ctx.userId),
+              eq(reorderRules.spaceId, ctx.spaceId),
+            ),
+          );
+        return {
+          rules: rows.map((r) => ({
+            id: r.id, query: r.query, quantity: r.quantity,
+            maxUsd: usd(r.maxUnitPriceCents), intervalDays: r.intervalDays,
+            enabled: r.enabled, lastRunAt: r.lastRunAt,
           })),
         };
       },

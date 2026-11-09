@@ -22,7 +22,9 @@ AI procurement agent for solopreneurs — finds real products (Channel3), negoti
 ## Architecture
 
 - `src/app/api/chat` — buyer agent (Vercel AI SDK `streamText` + tools)
-- `src/lib/agent/` — system prompt, tools, merchant persona (`merchant.ts`)
+- `src/lib/agent/` — system prompt, tools, merchant agent (`merchant.ts` — real A2A: own LLM + tools, floor enforced server-side, deterministic fallback)
+- `src/lib/agent/model.ts` — shared model factory (buyer agent + merchant agent)
+- `src/app/api/jobs/escrow-watch` — watchdog cron: reconciles PayPal state, tracks shipments (DELIVERED → flag release), evaluates reorder rules (policy + autonomous limit → prepared order, human approves)
 - `src/lib/paypal.ts` — REST client for escrow orders (AUTHORIZE/authorize/capture/void). The Agent Toolkit only does CAPTURE — escrow lives here.
 - `src/lib/paypal-toolkit.ts` — PayPal Agent Toolkit tools (invoices, disputes, transactions, shipment, insights) normalized to AI SDK v7 (`inputSchema`)
 - `src/lib/channel3.ts` — Channel3 product search, normalized to `ProductCard`

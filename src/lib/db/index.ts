@@ -153,6 +153,24 @@ alter table audit_log add column if not exists space_id text;
 alter table messages add column if not exists space_id text;
 alter table negotiations add column if not exists space_id text;
 alter table alerts add column if not exists space_id text;
+alter table orders_local add column if not exists tracking_number text;
+alter table orders_local add column if not exists carrier text;
+alter table orders_local add column if not exists tracking_status text;
+alter table orders_local add column if not exists invoice_id text;
+alter table orders_local add column if not exists reorder_rule_id text;
+create table if not exists reorder_rules (
+  id text primary key,
+  user_id text not null,
+  space_id text not null,
+  query text not null,
+  vendor_domain text,
+  quantity integer not null default 1,
+  max_unit_price_cents integer not null,
+  interval_days integer not null default 30,
+  enabled boolean not null default true,
+  last_run_at timestamptz,
+  created_at timestamptz default now()
+);
 insert into policies (id, name, max_per_tx_cents, daily_cap_cents, monthly_cap_cents, autonomous_limit_cents, allowed_vendors, active)
 select 'default', 'Default spend policy', 25000, 75000, 300000, 5000, null, true
 where not exists (select 1 from policies where id = 'default');

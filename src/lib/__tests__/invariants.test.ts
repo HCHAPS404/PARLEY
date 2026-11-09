@@ -43,14 +43,18 @@ describe("i18n dictionaries", async () => {
 describe("agent tool surface", async () => {
   const { agentTools } = await import("../agent/tools");
 
-  it("demo role gets ONLY the seven core tools — no merchant PayPal surface", () => {
+  it("demo role gets ONLY the core tools — no merchant PayPal surface", () => {
     const tools = agentTools({ userId: "u1", role: "demo", spaceId: "sp_test" });
     expect(Object.keys(tools).sort()).toEqual([
       "confirm_delivery_release",
       "create_escrow_order",
+      "create_reorder_rule",
       "get_escrow_status",
       "list_orders",
+      "list_reorder_rules",
       "merchant_quote",
+      "register_tracking",
+      "request_invoice",
       "search_products",
       "void_escrow_order",
     ]);
@@ -85,6 +89,20 @@ describe("agent tool surface", async () => {
     ];
     for (const name of forbidden) {
       expect(Object.keys(tools)).not.toContain(name);
+    }
+  });
+
+  it("money-touching tools reject demo role before any side effect", async () => {
+    const tools = agentTools({ userId: "u1", role: "demo", spaceId: "sp_test" });
+    const gated: [string, Record<string, unknown>][] = [
+      ["register_tracking", { paypalOrderId: "o1", trackingNumber: "1Z", carrier: "UPS" }],
+      ["request_invoice", { paypalOrderId: "o1", recipientEmail: "a@b.co" }],
+      ["create_reorder_rule", { query: "boxes", maxUnitPriceUsd: 25 }],
+    ];
+    const byName = tools as unknown as Record<string, { execute: (a: unknown) => Promise<{ error?: string }> }>;
+    for (const [name, input] of gated) {
+      const res = await byName[name].execute(input);
+      expect(res.error).toMatch(/demo/i);
     }
   });
 });

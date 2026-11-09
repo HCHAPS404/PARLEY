@@ -95,9 +95,14 @@ export const ordersLocal = pgTable("orders_local", {
   paypalOrderId: text("paypal_order_id").notNull().unique(),
   authorizationId: text("authorization_id"),
   authorizationExpiresAt: timestamp("authorization_expires_at", { withTimezone: true }),
-  status: text("status").notNull(), // created|approved|authorized|captured|voided|cancelled|failed
+  status: text("status").notNull(), // created|approved|authorized|delivered|captured|voided|cancelled|failed
   title: text("title").notNull(),
   vendor: text("vendor"),
+  trackingNumber: text("tracking_number"),
+  carrier: text("carrier"),
+  trackingStatus: text("tracking_status"), // SHIPPED|IN_TRANSIT|DELIVERED|...
+  invoiceId: text("invoice_id"), // PayPal invoice issued by the merchant
+  reorderRuleId: text("reorder_rule_id"), // which rule created this order, if autonomous
   amountCents: integer("amount_cents").notNull(),
   currency: text("currency").notNull().default("USD"),
   quantity: integer("quantity").notNull().default(1),
@@ -140,8 +145,23 @@ export const vendorScores = pgTable("vendor_scores", {
 export const alerts = pgTable("alerts", {
   id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  kind: text("kind").notNull(), // duplicate_charge|price_hike|better_price|delivery_overdue
+  kind: text("kind").notNull(), // duplicate_charge|price_hike|better_price|delivery_overdue|delivered|reorder_ready|reorder_created
   spaceId: text("space_id"),
   payload: jsonb("payload"),
   status: text("status").notNull().default("open"), // open|acted|dismissed
+});
+
+/** Autonomous procurement rules — the agent reorders on a schedule, inside policy. */
+export const reorderRules = pgTable("reorder_rules", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  spaceId: text("space_id").notNull(),
+  query: text("query").notNull(), // what to search for, e.g. "kraft shipping boxes"
+  vendorDomain: text("vendor_domain"), // optional pinned vendor
+  quantity: integer("quantity").notNull().default(1),
+  maxUnitPriceCents: integer("max_unit_price_cents").notNull(), // never buy above this
+  intervalDays: integer("interval_days").notNull().default(30),
+  enabled: boolean("enabled").notNull().default(true),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });

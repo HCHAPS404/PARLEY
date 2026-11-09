@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { getDb, ensureDb } from "@/lib/db";
-import { ordersLocal, alerts } from "@/lib/db/schema";
-import { getOrder } from "@/lib/paypal";
+import { ordersLocal, alerts, reorderRules } from "@/lib/db/schema";
+import { getOrder, createEscrowOrder } from "@/lib/paypal";
+import { paypalTools } from "@/lib/paypal-toolkit";
+import { searchProducts } from "@/lib/channel3";
+import { checkPolicy } from "@/lib/policy";
 import { audit } from "@/lib/audit";
 import { env } from "@/lib/env";
 
@@ -58,7 +61,7 @@ export async function GET(req: Request) {
     );
 
   const now = Date.now();
-  const summary = { checked: open.length, reconciled: 0, expired: 0, alerts: 0, errors: 0 };
+  const summary = { checked: open.length, reconciled: 0, expired: 0, alerts: 0, delivered: 0, reorderProposals: 0, reordersCreated: 0, errors: 0 };
 
   for (const row of open) {
     try {
@@ -97,7 +100,41 @@ export async function GET(req: Request) {
         continue;
       }
 
-      // ── 2. Expired authorization — hold released back to the buyer ──
+      // ── 2. Shipment-aware escrow — the hold watches the box ──
+      if (row.status === "authorized" && row.trackingNumber && row.trackingStatus !== "DELIVERED") {
+        try {
+          const t = paypalTools()["get_shipment_tracking"] as {
+            execute?: (a: unknown) => Promise<unknown>;
+          };
+          const tr = (await t.execute?.({
+            transaction_id: row.authorizationId,
+            tracking_number: row.trackingNumber,
+          })) as { status?: string } | undefined;
+          const st = tr?.status ?? null;
+          if (st === "DELIVERED") {
+            await db
+              .update(ordersLocal)
+              .set({ status: "delivered", deliveredAt: new Date(), trackingStatus: st, updatedAt: new Date() })
+              .where(eq(ordersLocal.paypalOrderId, row.paypalOrderId));
+            if (
+              await alertOnce(db, "delivered", {
+                paypalOrderId: row.paypalOrderId,
+                title: row.title,
+                trackingNumber: row.trackingNumber,
+                reason: "Carrier confirms delivery — release the escrow to pay the seller",
+              }, row.spaceId)
+            )
+              summary.delivered++;
+          } else if (st && st !== row.trackingStatus) {
+            await db
+              .update(ordersLocal)
+              .set({ trackingStatus: st, updatedAt: new Date() })
+              .where(eq(ordersLocal.paypalOrderId, row.paypalOrderId));
+          }
+        } catch { /* carrier lookups are best-effort */ }
+      }
+
+      // ── 3. Expired authorization — hold released back to the buyer ──
       const exp = row.authorizationExpiresAt?.getTime();
       if (exp && exp < now) {
         const order = await getOrder(row.paypalOrderId);
@@ -132,6 +169,74 @@ export async function GET(req: Request) {
         )
           summary.alerts++;
       }
+    } catch {
+      summary.errors++;
+    }
+  }
+
+  // ── 5. Autonomous procurement — due reorder rules ──
+  // Inside policy + under the autonomous limit → the agent prepares the order,
+  // human still approves on PayPal in one click. Anything else → proposal only.
+  const rules = await db.select().from(reorderRules).where(eq(reorderRules.enabled, true));
+  for (const rule of rules) {
+    if (rule.lastRunAt && now - rule.lastRunAt.getTime() < rule.intervalDays * 86400_000) continue;
+    try {
+      const { products } = await searchProducts({ query: rule.query, limit: 5 });
+      const pick = products.find(
+        (p) =>
+          p.bestPriceCents != null &&
+          p.bestPriceCents <= rule.maxUnitPriceCents &&
+          (!rule.vendorDomain || p.merchant?.includes(rule.vendorDomain)),
+      );
+      await db.update(reorderRules).set({ lastRunAt: new Date() }).where(eq(reorderRules.id, rule.id));
+      const base = { ruleId: rule.id, query: rule.query };
+      if (!pick || pick.bestPriceCents == null) {
+        await alertOnce(db, "reorder_ready", {
+          ...base, reason: `Nothing under $${(rule.maxUnitPriceCents / 100).toFixed(2)} this cycle`,
+        }, rule.spaceId);
+        continue;
+      }
+      const amountCents = pick.bestPriceCents * rule.quantity;
+      const decision = await checkPolicy({ amountCents, vendor: pick.merchant, spaceId: rule.spaceId });
+      if (!decision.allow || decision.requiresApproval) {
+        await alertOnce(db, "reorder_ready", {
+          ...base, title: pick.title, priceUsd: pick.bestPriceCents / 100,
+          reason: !decision.allow ? decision.reason : "Above the autonomous limit — review in chat",
+        }, rule.spaceId);
+        summary.reorderProposals++;
+        continue;
+      }
+      const order = await createEscrowOrder({
+        amountCents,
+        description: `${pick.title} x${rule.quantity} (auto-reorder)`,
+        vendorName: pick.merchant,
+        invoiceKey: `parley-reorder-${rule.id}-${new Date().toISOString().slice(0, 10)}`,
+        returnUrl: `${env.appUrl}/api/paypal/return`,
+        cancelUrl: `${env.appUrl}/api/paypal/cancel`,
+      });
+      const approveUrl =
+        order.links?.find((l) => l.rel === "approve" || l.rel === "payer-action")?.href ??
+        `https://www.${env.paypalEnv === "live" ? "" : "sandbox."}paypal.com/checkoutnow?token=${order.id}`;
+      await db.insert(ordersLocal).values({
+        id: crypto.randomUUID(),
+        userId: rule.userId,
+        spaceId: rule.spaceId,
+        paypalOrderId: order.id,
+        status: "created",
+        title: `${pick.title} (auto-reorder)`,
+        vendor: pick.merchant ?? null,
+        amountCents,
+        currency: pick.currency,
+        quantity: rule.quantity,
+        negotiated: false,
+        productSnapshot: pick,
+        reorderRuleId: rule.id,
+      });
+      await alertOnce(db, "reorder_created", {
+        ...base, paypalOrderId: order.id, title: pick.title, priceUsd: pick.bestPriceCents / 100,
+        approveUrl, reason: "Inside policy and under the autonomous limit — approve on PayPal",
+      }, rule.spaceId);
+      summary.reordersCreated++;
     } catch {
       summary.errors++;
     }
