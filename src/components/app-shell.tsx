@@ -138,15 +138,24 @@ export function AppShell({
             </button>
           </div>
 
-          <div
-            className={`rounded-full px-2.5 py-1 text-center text-[10px] font-medium ${
-              user.role === "admin"
-                ? "bg-accent-mist text-accent-strong"
-                : "bg-paper text-ink-soft"
-            }`}
+          <Link
+            href="/settings"
+            className="flex items-center gap-2.5 rounded-lg border border-line bg-paper px-2.5 py-2 transition-colors hover:border-accent/40"
+            title={t("settings.profile")}
           >
-            {user.username} · {t(user.role === "admin" ? "common.admin" : "common.demo")}
-          </div>
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-mist font-display text-[11px] font-semibold text-accent-strong">
+              {user.username.slice(0, 2).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12px] font-medium">
+                {user.username}
+              </div>
+              <div className="text-[10px] text-ink-soft">
+                {t(user.role === "admin" ? "common.admin" : "common.demo")}
+              </div>
+            </div>
+            <Settings className="h-3.5 w-3.5 shrink-0 text-ink-soft" />
+          </Link>
         </div>
       </aside>
 

@@ -11,6 +11,7 @@ import {
   Loader2,
   LogOut,
   PackageSearch,
+  Plus,
   ShieldCheck,
   Wrench,
   X,
@@ -51,6 +52,7 @@ export function ChatArea({
   const router = useRouter();
   const { t } = usePrefs();
   const [input, setInput] = useState("");
+  const [plusKey, setPlusKey] = useState(0);
   // Banner derives from PayPal redirect params once, at mount (client-only read).
   const [banner, setBanner] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -167,7 +169,14 @@ export function ChatArea({
       {/* Composer */}
       <div className="border-t border-line bg-card px-4 py-3">
         <div className="mx-auto flex max-w-3xl items-end gap-2">
+          <PlusMenu
+            onPick={(text) => {
+              setInput(text);
+              setPlusKey((k) => k + 1);
+            }}
+          />
           <textarea
+            key={plusKey}
             value={input}
             autoFocus
             onChange={(e) => setInput(e.target.value)}
@@ -231,6 +240,68 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function PlusMenu({ onPick }: { onPick: (text: string) => void }) {
+  const { t } = usePrefs();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const items = [
+    "plus.q1",
+    "plus.q2",
+    "plus.q3",
+    "plus.q4",
+    "plus.q5",
+    "plus.q6",
+    "plus.q7",
+    "plus.q8",
+  ] as const;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border transition-colors ${
+          open
+            ? "border-accent bg-accent-mist text-accent-strong"
+            : "border-line text-ink-soft hover:border-accent/50 hover:text-ink"
+        }`}
+        aria-label={t("plus.title")}
+      >
+        <Plus className={`h-4 w-4 transition-transform ${open ? "rotate-45" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute bottom-12 left-0 z-30 w-80 overflow-hidden rounded-xl border border-line bg-card shadow-lg shadow-ink/10">
+          <div className="border-b border-line/60 px-3.5 py-2 text-[10px] font-medium uppercase tracking-wider text-ink-soft">
+            {t("plus.title")}
+          </div>
+          <div className="max-h-72 overflow-y-auto p-1.5">
+            {items.map((k) => (
+              <button
+                key={k}
+                onClick={() => {
+                  onPick(t(k));
+                  setOpen(false);
+                }}
+                className="w-full rounded-lg px-2.5 py-2 text-left text-[13px] text-ink transition-colors hover:bg-accent-mist hover:text-accent-strong"
+              >
+                {t(k)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -325,61 +396,67 @@ function ToolPart({ part }: { part: any }) {
   );
 }
 
+function ProductImage({ src, alt }: { src?: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return <PackageSearch className="h-9 w-9 text-ink-soft/40" />;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setFailed(true)}
+      className="max-h-full max-w-full object-contain"
+      loading="lazy"
+    />
+  );
+}
+
 function ProductGrid({ products }: { products: ProductCard[] }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {products.slice(0, 6).map((p) => (
         <div
           key={p.id}
-          className="overflow-hidden rounded-xl border border-line bg-card"
+          className="group overflow-hidden rounded-xl border border-line bg-card transition-shadow hover:shadow-md"
         >
-          <div className="flex gap-3 p-3">
-            <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg bg-paper">
-              {p.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={p.image}
-                  alt={p.title}
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <PackageSearch className="h-5 w-5 text-ink-soft" />
+          <div className="grid h-32 place-items-center bg-paper p-3">
+            <ProductImage src={p.image} alt={p.title} />
+          </div>
+          <div className="border-t border-line/60 p-3">
+            <div className="line-clamp-2 min-h-8 text-[13px] font-medium leading-4">
+              {p.title}
+            </div>
+            <div className="mt-1.5 flex items-baseline justify-between">
+              <span className="font-display text-[15px] font-semibold text-accent-strong">
+                {usd(p.bestPriceCents, p.currency)}
+              </span>
+              {p.offersCount > 1 && (
+                <span className="text-[11px] text-ink-soft">
+                  {p.offersCount} offers
+                </span>
               )}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="line-clamp-2 text-[13px] font-medium leading-4">
-                {p.title}
-              </div>
-              <div className="mt-1 flex items-baseline justify-between">
-                <span className="font-display text-[15px] font-semibold text-accent-strong">
-                  {usd(p.bestPriceCents, p.currency)}
+            <div className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-ink-soft">
+              <span className="truncate">
+                {p.merchant}
+                {p.brand ? ` · ${p.brand}` : ""}
+              </span>
+              {p.vendorScore != null && (
+                <span
+                  className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium ${
+                    p.vendorScore >= 70
+                      ? "bg-ok-soft text-ok"
+                      : p.vendorScore >= 45
+                        ? "bg-warn-soft text-warn"
+                        : "bg-danger-soft text-danger"
+                  }`}
+                  title={`Vendor reputation: ${p.vendorScore}/100 (learned from deliveries)`}
+                >
+                  {p.vendorScore}
                 </span>
-                {p.offersCount > 1 && (
-                  <span className="text-[11px] text-ink-soft">
-                    {p.offersCount} offers
-                  </span>
-                )}
-              </div>
-              <div className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-ink-soft">
-                <span className="truncate">
-                  {p.merchant}
-                  {p.brand ? ` · ${p.brand}` : ""}
-                </span>
-                {p.vendorScore != null && (
-                  <span
-                    className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium ${
-                      p.vendorScore >= 70
-                        ? "bg-ok-soft text-ok"
-                        : p.vendorScore >= 45
-                          ? "bg-warn-soft text-warn"
-                          : "bg-danger-soft text-danger"
-                    }`}
-                    title={`Vendor reputation: ${p.vendorScore}/100 (learned from deliveries)`}
-                  >
-                    {p.vendorScore}
-                  </span>
-                )}
-              </div>
+              )}
             </div>
           </div>
         </div>
