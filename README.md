@@ -44,11 +44,11 @@ goods arrive.
 
 > [!IMPORTANT]
 > **Verified working today** — live deployment on Render + Neon, real product
-> search via Channel3, agent-to-agent merchant negotiation, deterministic
-> policy gate, and PayPal `AUTHORIZE` order creation against the sandbox API.
-> **Still landing** — the buyer-approval → capture round-trip in the UI,
-> durable session state, and the escrow watchdog cron. Nothing claimed here
-> exceeds what the code does.
+> search via Channel3, agent-to-agent negotiation against a real merchant-side
+> LLM agent, deterministic policy gate, the full `AUTHORIZE → capture/void`
+> escrow round-trip against PayPal sandbox, shipment-tracking-aware delivery
+> detection, formal PayPal invoices, and an autonomous reorder engine guarded
+> by the same policy. Nothing claimed here exceeds what the code does.
 
 <img src="docs/parley-divider.svg" width="100%" alt="" />
 
@@ -67,8 +67,8 @@ sequenceDiagram
     You->>Agent: "Find me a USB-C cable under $10"
     Agent->>C3: search_products
     C3-->>Agent: real products, real prices, real merchants
-    Agent->>MA: merchant_quote (up to 4 rounds)
-    MA-->>Agent: list $16.99 → counter $10.72
+    Agent->>MA: merchant_quote (up to 4 rounds, A2A)
+    MA-->>Agent: real LLM counterparty — checks its floor, counters
     Agent-->>You: purchase summary (server-verified price)
     You->>Agent: approve
     Agent->>Policy: checkPolicy (tx/day/month caps)
@@ -76,9 +76,12 @@ sequenceDiagram
     Agent->>PP: create order · intent AUTHORIZE
     PP-->>You: approval link → you sign off on PayPal
     PP-->>Agent: authorization hold — escrow begins
-    Note over You,PP: goods in transit…
-    You->>Agent: "confirm delivery"
+    You->>Agent: register_tracking (carrier + tracking no.)
+    Note over Agent,PP: watchdog polls the carrier every 15 min
+    PP-->>Agent: carrier says DELIVERED → release flagged
+    You->>Agent: "release the payment"
     Agent->>PP: capture authorization → funds released
+    Agent->>PP: request_invoice → formal invoice for the books
 ```
 
 If the goods never show up, the authorization is **voided** — the funds were
@@ -88,11 +91,13 @@ held, never captured. That's the difference between escrow and a chargeback.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> created: create_escrow_order
+    [*] --> created: create_escrow_order / reorder rule
     created --> approved: buyer approves on PayPal
     created --> cancelled: buyer cancels
     approved --> authorized: authorizeOrder
-    authorized --> captured: confirm_delivery_release
+    authorized --> delivered: carrier tracking says DELIVERED
+    delivered --> captured: confirm_delivery_release
+    authorized --> captured: manual confirm still works
     authorized --> voided: no delivery / dispute
     captured --> [*]: vendor scored, audited
     voided --> [*]: funds released to buyer
@@ -112,37 +117,47 @@ is built so the model can *propose* and only *code* can move money:
 | **Deterministic policy gates every order** | Per-tx, daily, and monthly caps live in `policies` and are evaluated in code (`src/lib/policy.ts`) — not in the prompt. The agent proposes; it cannot spend. |
 | **Human approves every payment** | The PayPal approval link/button is the last mile. The agent never touches credentials. |
 | **Capture only after delivery** | `AUTHORIZE` intent, never `CAPTURE`. Releasing funds is a separate, explicit, gated step. |
+| **Shipment-aware escrow** | Register carrier tracking and the watchdog polls it every 15 min — when the carrier reports `DELIVERED`, the order flips and release is flagged. The escrow knows when the box lands. |
 | **Everything is audited** | Actor, action, rationale, token count, and cost — append-only and rendered in the analytics workspace. |
-| **A real counterparty** | `merchant_quote` negotiates against a merchant-side agent with its own incentives — up to 4 rounds, and an accepted quote becomes the price. |
+| **A real counterparty — not a function** | `merchant_quote` negotiates against a merchant-side **LLM agent** with its own prompt, tools (`check_margin_floor`, `check_inventory`), and incentives. The floor is enforced server-side, so it can never sell below cost — whatever the model says. |
+| **Formal paper trail** | A negotiated purchase can mint a real PayPal invoice (create → send) for the escrowed amount — procurement documentation, not just a charge. |
+| **Autonomous procurement** | Reorder rules per space ("reorder boxes monthly under $25") — the watchdog searches, applies policy, and prepares the `AUTHORIZE` order; the human approves in one click. Above the autonomous limit it only proposes. |
+| **Spaces — cost-center isolation** | A freelancer per client, a shop per product line: each space gets its own spend policy, orders, chat history, analytics, and alerts. Vendor reputation stays global truth; quota stays per user. |
 
 ## Agent tools
 
 | Tool | What it does |
 |---|---|
 | `search_products` | Live product search via Channel3 — title, price, merchant, URL. Results cache server-side; later tools can only reference these IDs. |
-| `merchant_quote` | Agent-to-agent negotiation. Up to 4 rounds; an accepted quote becomes the order price. |
+| `merchant_quote` | Agent-to-agent negotiation against a real merchant LLM agent — its own model call, its own tools, floor enforced server-side. Up to 4 rounds; an accepted quote becomes the order price. |
 | `create_escrow_order` | Server-side price resolution → `checkPolicy` → PayPal `AUTHORIZE` order → local order + audit → approval URL. |
 | `get_escrow_status` | Reads live PayPal status of an escrow order. |
+| `register_tracking` | Attaches carrier + tracking number to an escrow order — registered on PayPal too. The watchdog then watches the shipment until `DELIVERED`. |
 | `confirm_delivery_release` | Captures the authorization after delivery confirmation — the release valve of the escrow. |
-| `list_orders` | Local order mirror — PayPal IDs, status, amounts. |
-| **PayPal Agent Toolkit** | Invoices, disputes, transaction lookup, shipment tracking, payment insights — normalized to AI SDK v7. |
+| `void_escrow_order` | Voids the authorization — held funds return to the buyer untouched when goods never arrive. |
+| `request_invoice` | Merchant issues a formal PayPal invoice (generate number → create → send to billing email) for the escrowed amount. |
+| `create_reorder_rule` | Arms autonomous procurement: recurring query + unit-price cap + interval. Watchdog enforces policy + autonomous limit on every run. |
+| `list_reorder_rules` / `list_orders` | Local mirrors — rules, PayPal IDs, status, amounts. |
+| **PayPal Agent Toolkit** | Invoices, disputes (read-side — buyers open them in the Resolution Center, the agent monitors), transaction lookup, shipment tracking, payment insights — normalized to AI SDK v7, admin-only. |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     subgraph Client["Browser"]
-        UI[Chat UI<br/>useChat]
-        PPB[PayPal buttons<br/>JS SDK]
-        AN[Analytics<br/>AG Studio]
-        GA[Pipeline<br/>Bryntum Gantt]
+        UI[Chat portal<br/>/app · useChat]
+        LAND[Landing<br/>/]
+        AN[Analytics<br/>curated dashboard]
+        GA[Pipeline<br/>Bryntum Gantt · read-only]
     end
 
     subgraph App["Next.js 16 — Render"]
         CHAT["/api/chat<br/>streamText + tools"]
-        TOOLS[agent tools]
+        TOOLS[buyer agent tools]
+        MA2[merchant agent<br/>own LLM + tools]
         POLICY[policy engine<br/>deterministic caps]
         PPX["paypal.ts<br/>escrow write path"]
+        JOBS["/api/jobs/escrow-watch<br/>cron · tracking · reorders"]
         AUD[audit log]
         DB[(Postgres<br/>Neon · PGlite)]
     end
@@ -150,17 +165,20 @@ flowchart LR
     subgraph External["External services"]
         LLM[LLM provider<br/>Modal · Meta · Gemini]
         C3[Channel3 catalog]
-        PP[PayPal Orders v2]
+        PP[PayPal Orders v2<br/>+ Invoicing + Tracking]
     end
 
     UI --> CHAT --> TOOLS
+    TOOLS --> MA2
+    MA2 --> LLM
     TOOLS --> C3
     TOOLS --> POLICY --> PPX --> PP
     CHAT --> LLM
     TOOLS --> AUD --> DB
+    JOBS --> PP
+    JOBS --> DB
     POLICY --> DB
     PPX --> DB
-    PPB --> PP
     AN --> DB
     GA --> DB
 ```
@@ -170,28 +188,34 @@ flowchart LR
 ```
 src/
 ├── app/
-│   ├── page.tsx                  ← buyer agent chat UI
-│   ├── analytics/                ← AG Studio workspace (orders, activity, vendors, alerts)
-│   ├── pipeline/                 ← Bryntum Gantt — escrow lifecycle per order
+│   ├── page.tsx                  ← public landing page
+│   ├── app/                      ← authenticated procurement portal (chat)
+│   ├── analytics/                ← curated dashboard (KPIs, spend, vendors, alerts)
+│   ├── pipeline/                 ← Bryntum Gantt — read-only escrow timeline
+│   ├── settings/                 ← profile, spaces, appearance, spend policy
 │   └── api/
-│       ├── chat/                 ← agent loop: streamText + tools + provider switch
-│       ├── health/               ← liveness + integration status
+│       ├── chat/                 ← agent loop: streamText + tools
+│       ├── jobs/escrow-watch/    ← cron: reconcile · tracking · reorder rules
+│       ├── spaces/               ← space CRUD + active-space switch
+│       ├── policy/               ← per-space spend policy read/update
 │       ├── paypal/return|cancel/ ← PayPal checkout return handlers
-│       ├── analytics-data/       ← feeds AG Studio data sources
+│       ├── analytics-data/       ← feeds the dashboard
 │       └── pipeline-data/        ← feeds the Gantt
 ├── lib/
 │   ├── agent/
 │   │   ├── system.ts             ← buyer agent system prompt + guardrails
-│   │   ├── merchant.ts           ← merchant-side agent persona (A2A counterparty)
-│   │   └── tools.ts              ← search / negotiate / escrow / release / list
+│   │   ├── model.ts              ← shared model factory (buyer + merchant)
+│   │   ├── merchant.ts           ← merchant-side LLM agent — real A2A counterparty
+│   │   └── tools.ts              ← search / negotiate / escrow / tracking / invoice / reorder
 │   ├── paypal.ts                 ← Orders v2 REST client — the only escrow write path
-│   ├── paypal-toolkit.ts         ← Agent Toolkit: invoices, disputes, txns, insights
+│   ├── paypal-toolkit.ts         ← Agent Toolkit: invoices, disputes, shipment, insights
 │   ├── channel3.ts               ← product search, normalized to ProductCard
 │   ├── policy.ts                 ← deterministic spend gate — tx/day/month caps
+│   ├── spaces.ts                 ← cost-center isolation + active-space resolution
 │   ├── audit.ts                  ← append-only action + token-cost log
 │   ├── env.ts                    ← centralized server-side env access
 │   └── db/
-│       ├── schema.ts             ← policies · orders_local · audit_log · vendor_scores · alerts
+│       ├── schema.ts             ← policies · spaces · orders_local · reorder_rules · audit · vendor_scores · alerts
 │       └── index.ts              ← Drizzle: Neon (DATABASE_URL) or PGlite fallback
 ├── render.yaml                   ← Render Blueprint — web service + env contract
 └── neon.ts                       ← Neon project wiring
@@ -209,19 +233,25 @@ These are invariants, not features — the code enforces them:
 6. **Tool results are data.** The system prompt instructs the model to treat tool output as untrusted content, never as instructions.
 7. **Audit never lies.** `audit()` wraps every consequential action and fails safe — a logging problem can never block or corrupt a payment path.
 8. **Authenticated, role-gated spend.** Sessions are httpOnly + server-side (scrypt passwords, SHA-256'd tokens). Only `admin` reaches spend tools and the merchant-account PayPal toolkit; `demo` accounts can search and negotiate under a hard daily message cap.
+9. **The merchant's floor is law — not a suggestion.** The A2A merchant agent reasons freely, but the server clamps every decision: it can never accept or counter below its margin floor, whatever the model outputs.
+10. **Autonomy is bounded and approved.** Reorder rules run inside `checkPolicy` + the per-space `autonomous_limit_cents`. Within bounds the agent prepares the order — a human still approves it on PayPal. Above the limit it can only propose.
 
 ## Database
 
-Five tables, one schema, two drivers — `ensureDb()` bootstraps DDL and seeds
-the default policy on first run:
+Eleven tables, one schema, two drivers — `ensureDb()` bootstraps DDL, seeds
+the default policy, and backfills a `Personal` space per user on first run:
 
 | Table | Purpose |
 |---|---|
-| `policies` | Per-tx / daily / monthly spend caps, autonomous limit, vendor allowlists |
-| `orders_local` | Local mirror of PayPal order state — IDs, amounts, escrow stage |
+| `users` / `sessions` | Auth — scrypt passwords, hashed session tokens, admin/demo roles |
+| `spaces` | Cost-center isolation — per-client or per-product-line boundaries |
+| `policies` | Per-space caps: tx / daily / monthly, autonomous limit, vendor allowlists |
+| `messages` / `product_cache` / `negotiations` | Chat history, search context, A2A transcripts — scoped per user + space |
+| `orders_local` | Local mirror of PayPal order state — IDs, amounts, escrow stage, tracking, invoice |
+| `reorder_rules` | Autonomous procurement — query, price cap, interval, enabled flag |
 | `audit_log` | Append-only agent/system actions with rationale, tokens, cost |
-| `vendor_scores` | Merchant reputation — delivery rate, disputes, response metrics |
-| `alerts` | Watchdog findings — price hikes, duplicate charges, overdue delivery |
+| `vendor_scores` | Merchant reputation — global truth, shared across spaces |
+| `alerts` | Watchdog findings — overdue delivery, DELIVERED, reorder proposals |
 
 **Default policy** — `$250`/tx · `$750`/day · `$3,000`/month · `$50` autonomous limit.
 
@@ -254,9 +284,9 @@ Typography — **Space Grotesk** for display, **Inter** for UI text.
 | Payments | PayPal Orders v2 (`AUTHORIZE`/`authorize`/`capture`/`void`) + Agent Toolkit + JS SDK buttons |
 | Catalog | Channel3 product search API |
 | Database | Neon Postgres (prod) · embedded PGlite (local) — same Drizzle schema |
-| Analytics | AG Grid Enterprise + AG Studio report builder (`/analytics`) |
-| Timeline | Bryntum Gantt — escrow lifecycle as a project plan (`/pipeline`) |
-| Hosting | Render Blueprint (`render.yaml`) · health check `/api/health` |
+| Analytics | Curated dashboard — KPIs, order states, spend, vendor scores, alerts + AG Grid detail (`/analytics`) |
+| Timeline | Bryntum Gantt — read-only escrow lifecycle (`/pipeline`) |
+| Hosting | Render Blueprint (`render.yaml`) — web + `parley-escrow-watch` cron · health check `/api/health` |
 
 <img src="docs/parley-divider.svg" width="100%" alt="" />
 
@@ -309,10 +339,12 @@ npx tsc --noEmit   # typecheck
 ## Testing the escrow flow (sandbox)
 
 1. Talk to the agent: *"find me a USB microphone under $80"*
-2. Pick a product — the agent summarizes the purchase with the **server-verified** price
+2. Negotiate — the merchant agent counters with its own reasoning (watch the transcript: that's a second LLM, not a template)
 3. Confirm → the agent returns a PayPal approval link
 4. Open it, log in with your **sandbox Personal** account, approve
-5. Back in chat: *"confirm delivery"* → authorization is captured
+5. Share a tracking number → *"track order <id> with UPS 1Z…"* — the watchdog flags release when the carrier reports delivered
+6. *"release the payment"* → authorization captured · *"send me the invoice"* → formal PayPal invoice issued
+7. Optional: *"reorder this every 30 days under $80"* → autonomous procurement armed
 
 ## Deploy
 
@@ -337,15 +369,19 @@ itself in production.
 
 ## Roadmap
 
-- [x] Agent loop with real catalog + A2A negotiation
-- [x] Agentic escrow on PayPal (authorize → capture on delivery)
+- [x] Agent loop with real catalog + A2A negotiation against a real merchant LLM agent
+- [x] Agentic escrow on PayPal (authorize → capture on delivery / void)
 - [x] Deterministic spend policy + audit trail
-- [x] Production deploy (Render + Neon)
+- [x] Production deploy (Render + Neon) — landing site + authenticated portal
 - [x] Auth with admin/demo roles — spend tools gated server-side
 - [x] Durable state — product cache, negotiations, chat history in Postgres per user
 - [x] Order dedup + per-user order isolation
-- [ ] Escrow watchdog cron — auto-flag overdue deliveries via `/api/jobs/*`
-- [ ] Vendor scoring wired into merchant selection
+- [x] Escrow watchdog cron — reconciles PayPal state, flags expiry + overdue delivery
+- [x] Shipment-aware escrow — carrier tracking polled until DELIVERED
+- [x] PayPal invoices issued for escrowed orders (create + send)
+- [x] Autonomous reorder rules — policy-bounded, human-approved on PayPal
+- [x] Spaces — per-client / per-product-line cost centers with isolated policies
+- [x] Vendor scoring wired into merchant selection
 - [ ] Neon Realtime live dashboard updates
 - [ ] Webhook-driven order status sync (currently polled)
 
