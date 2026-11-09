@@ -393,6 +393,9 @@ export function agentTools(ctx: AgentCtx) {
           amountCents,
           description: `${product.title} x${quantity}`,
           vendorName: product.merchant,
+          // Deterministic invoice: same buyer + product + amount + day →
+          // PayPal rejects a retried create as DUPLICATE_INVOICE_ID.
+          invoiceKey: `parley-${ctx.userId.slice(0, 8)}-${productId.slice(0, 40)}-${amountCents}-${new Date().toISOString().slice(0, 10)}`,
           returnUrl: `${env.appUrl}/api/paypal/return`,
           cancelUrl: `${env.appUrl}/api/paypal/cancel`,
         });

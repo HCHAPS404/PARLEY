@@ -54,8 +54,15 @@ export async function paypalFetch<T = unknown>(
   const text = await res.text();
   const body = text ? safeJson(text) : null;
   if (!res.ok) {
+    // PayPal's error envelope: branch on details[0].issue, quote debug_id in
+    // support tickets (per the official sandbox guidelines).
+    const issue = body?.details?.[0]?.issue as string | undefined;
+    const debugId = body?.debug_id as string | undefined;
+    const suffix = [issue, debugId && `debug_id=${debugId}`]
+      .filter(Boolean)
+      .join(" ");
     throw new Error(
-      `PayPal ${init.method ?? "GET"} ${path} → ${res.status}: ${text}`,
+      `PayPal ${init.method ?? "GET"} ${path} → ${res.status}${suffix ? ` ${suffix}` : ""}: ${text}`,
     );
   }
   return body as T;
@@ -76,6 +83,9 @@ export interface EscrowOrderInput {
   currency?: string;
   description: string;
   vendorName?: string;
+  /** Stable dedup key — the same logical order always maps to the same
+   * invoice_id, so PayPal itself rejects a retried create. */
+  invoiceKey?: string;
   returnUrl: string;
   cancelUrl: string;
 }
@@ -108,6 +118,9 @@ export function createEscrowOrder(input: EscrowOrderInput) {
             amount: { currency_code: currency, value: amount },
             description: input.description.slice(0, 127),
             custom_id: input.vendorName?.slice(0, 127),
+            // Account-level dedup: complements PayPal-Request-Id so a retried
+            // create can never double-charge the buyer.
+            invoice_id: input.invoiceKey?.slice(0, 127),
           },
         ],
         payment_source: {
