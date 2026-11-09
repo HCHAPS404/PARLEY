@@ -1,8 +1,6 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/parley-banner-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="docs/parley-banner-light.svg">
-  <img alt="Parley — procurement that negotiates" src="docs/parley-banner-light.svg" width="100%">
-</picture>
+<p align="center">
+  <img alt="Parley — two agents, one marketplace, money that waits" src="public/parley-mark.png" width="420">
+</p>
 
 <div align="center">
 
