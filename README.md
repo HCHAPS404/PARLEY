@@ -118,6 +118,9 @@ is built so the model can *propose* and only *code* can move money:
 | **Shipment-aware escrow** | Register carrier tracking and the watchdog polls it every 15 min — when the carrier reports `DELIVERED`, the order flips and release is flagged. The escrow knows when the box lands. |
 | **Everything is audited** | Actor, action, rationale, token count, and cost — append-only and rendered in the analytics workspace. |
 | **A real counterparty — not a function** | `merchant_quote` negotiates against a merchant-side **LLM agent** with its own prompt, tools (`check_margin_floor`, `check_inventory`), and incentives. The floor is enforced server-side, so it can never sell below cost — whatever the model says. |
+| **Two-sided marketplace** | Sellers deploy their own merchant agent — catalog, margin floor, negotiation style — and its deals land on their live feed, ledger, and lead radar. Buyer and seller agents meet over MCP/A2A; neither talks to the other's human. |
+| **Market intelligence, not just sourcing** | The agent reports on demand — catalog depth, price spread, 90-day price trajectories — and watches products *or whole queries* for better offers, landing deals in the Inbox with links to act. |
+| **Visual sourcing** | Attach a product photo — it's matched against the live catalog server-side and becomes sourcing context. The model never handles the raw bytes. |
 | **Formal paper trail** | A negotiated purchase can mint a real PayPal invoice (create → send) for the escrowed amount — procurement documentation, not just a charge. |
 | **Autonomous procurement** | Reorder rules per space ("reorder boxes monthly under $25") — the watchdog searches, applies policy, and prepares the `AUTHORIZE` order; the human approves in one click. Above the autonomous limit it only proposes. |
 | **Spaces — cost-center isolation** | A freelancer per client, a shop per product line: each space gets its own spend policy, orders, chat history, analytics, and alerts. Vendor reputation stays global truth; quota stays per user. |
@@ -135,6 +138,10 @@ is built so the model can *propose* and only *code* can move money:
 | `void_escrow_order` | Voids the authorization — held funds return to the buyer untouched when goods never arrive. |
 | `request_invoice` | Merchant issues a formal PayPal invoice (generate number → create → send to billing email) for the escrowed amount. |
 | `create_reorder_rule` | Arms autonomous procurement: recurring query + unit-price cap + interval. Watchdog enforces policy + autonomous limit on every run. |
+| `run_rfq` | Multi-vendor request-for-quote — fans a need out to N merchant agents in parallel and persists the winning quote as a negotiation. |
+| `release_partial` | Partial escrow release — frees a percentage of the hold when only part of the order arrived or was accepted. |
+| `market_report` | Demand intelligence for a product space: catalog depth, cross-merchant price spread, vendor reliability, and the benchmark product's real 90-day price trajectory. |
+| `track_price` / `list_price_watches` / `stop_price_watch` | Arm, inspect, and retire watches — on a single product or a whole query. The watchdog scans every cycle and alerts the Inbox on drops and better offers. |
 | `list_reorder_rules` / `list_orders` | Local mirrors — rules, PayPal IDs, status, amounts. |
 | **PayPal Agent Toolkit** | Invoices, disputes (read-side — buyers open them in the Resolution Center, the agent monitors), transaction lookup, shipment tracking, payment insights — normalized to AI SDK v7, admin-only. |
 
@@ -146,7 +153,8 @@ flowchart LR
         UI[Chat portal<br/>/app · useChat]
         LAND[Landing<br/>/]
         AN[Analytics<br/>curated dashboard]
-        GA[Pipeline<br/>Bryntum Gantt · read-only]
+        GA[Pipeline<br/>kanban · escrow stages]
+        SELL[Seller portal<br/>/seller]
     end
 
     subgraph App["Next.js 16 — Render"]
@@ -179,6 +187,7 @@ flowchart LR
     PPX --> DB
     AN --> DB
     GA --> DB
+    SELL --> DB
 ```
 
 ### Repository layout
@@ -189,16 +198,23 @@ src/
 │   ├── page.tsx                  ← public landing page
 │   ├── app/                      ← authenticated procurement portal (chat)
 │   ├── analytics/                ← curated dashboard (KPIs, spend, vendors, alerts)
-│   ├── pipeline/                 ← Bryntum Gantt — read-only escrow timeline
+│   ├── pipeline/                 ← kanban board — orders grouped by escrow stage
+│   ├── inbox/                    ← approvals, deliveries, deals — actionable alerts
+│   ├── seller/                   ← merchant portal: catalog, agent feed, sales, leads
 │   ├── settings/                 ← profile, spaces, appearance, spend policy
 │   └── api/
 │       ├── chat/                 ← agent loop: streamText + tools
-│       ├── jobs/escrow-watch/    ← cron: reconcile · tracking · reorder rules
+│       ├── mcp/                  ← merchant agent served over JSON-RPC — real A2A boundary
+│       ├── jobs/escrow-watch/    ← cron: reconcile · tracking · reorders · price watches
+│       ├── jobs/run/             ← manual watchdog trigger for the signed-in user
+│       ├── conversations/        ← isolated chat threads
 │       ├── spaces/               ← space CRUD + active-space switch
 │       ├── policy/               ← per-space spend policy read/update
+│       ├── seller/               ← merchant profile, catalog, sales, leads
+│       ├── export/               ← per-space orders as CSV
 │       ├── paypal/return|cancel/ ← PayPal checkout return handlers
 │       ├── analytics-data/       ← feeds the dashboard
-│       └── pipeline-data/        ← feeds the Gantt
+│       └── pipeline-data/        ← feeds the kanban
 ├── lib/
 │   ├── agent/
 │   │   ├── system.ts             ← buyer agent system prompt + guardrails
@@ -236,7 +252,7 @@ These are invariants, not features — the code enforces them:
 
 ## Database
 
-Sixteen tables, one schema, two drivers — `ensureDb()` bootstraps DDL, seeds
+Eighteen tables, one schema, two drivers — `ensureDb()` bootstraps DDL, seeds
 the default policy, backfills a `Personal` space per user, and plants the
 `Acme Supply Co.` demo merchant so every deployment ships with a live A2A
 counterparty:
@@ -246,7 +262,8 @@ counterparty:
 | `users` / `sessions` | Auth — scrypt passwords, hashed session tokens, admin/demo roles |
 | `spaces` | Cost-center isolation — per-client or per-product-line boundaries |
 | `policies` | Per-space caps: tx / daily / monthly, autonomous limit, vendor allowlists |
-| `messages` / `product_cache` / `negotiations` | Chat history, search context, A2A transcripts — scoped per user + space |
+| `conversations` / `messages` | Isolated chat threads + history — scoped per user + space |
+| `product_cache` / `negotiations` | Search context + A2A transcripts — server-side price truth |
 | `orders_local` | Local mirror of PayPal order state — IDs, amounts, escrow stage, tracking, invoice |
 | `reorder_rules` | Autonomous procurement — query, price cap, interval, enabled flag |
 | `audit_log` | Append-only agent/system actions with rationale, tokens, cost |
@@ -254,6 +271,7 @@ counterparty:
 | `alerts` | Watchdog findings — overdue delivery, DELIVERED, reorder proposals |
 | `merchant_profiles` / `seller_products` | The user's own merchant agent — floor, style, catalog |
 | `merchant_sales` / `seller_events` | The seller ledger — closed deals + every negotiation round, live |
+| `price_watches` | Market surveillance — per-product or per-query targets the watchdog scans |
 
 **Default policy** — `$250`/tx · `$750`/day · `$3,000`/month · `$50` autonomous limit.
 
@@ -286,8 +304,9 @@ Typography — **Space Grotesk** for display, **Inter** for UI text.
 | Payments | PayPal Orders v2 (`AUTHORIZE`/`authorize`/`capture`/`void`) + Agent Toolkit + JS SDK buttons |
 | Catalog | Channel3 product search API |
 | Database | Neon Postgres (prod) · embedded PGlite (local) — same Drizzle schema |
-| Analytics | Curated dashboard — KPIs, order states, spend, vendor scores, alerts + AG Grid detail (`/analytics`) |
-| Timeline | Bryntum Gantt — read-only escrow lifecycle (`/pipeline`) |
+| Analytics | Curated dashboard — KPIs, negotiation savings, order states, spend, vendor scores, alerts + AG Grid detail (`/analytics`) |
+| Pipeline | Kanban board — orders grouped by escrow stage, overdue surfacing (`/pipeline`) |
+| Inbox | Actionable alerts — approvals, deliveries, deals, leads — with manual watchdog trigger (`/inbox`) |
 | Hosting | Render Blueprint (`render.yaml`) — web + `parley-escrow-watch` cron · health check `/api/health` |
 
 <img src="docs/parley-divider.svg" width="100%" alt="" />
@@ -334,6 +353,7 @@ npm run build      # production build
 npm run start      # serve production build
 npm run lint       # eslint
 npx tsc --noEmit   # typecheck
+npm test           # vitest — 24 invariant tests
 ```
 
 </details>
@@ -391,6 +411,14 @@ itself in production.
 - [x] Live seller feed — every negotiation round the merchant agent handles, in real time
 - [x] PayPal webhook — real-time order reconciliation (signature verification pending)
 - [x] CSV expense export per space
+- [x] Isolated conversation threads — per-thread history, lazy migration
+- [x] Multimodal chat — image attachments (4×2MB) feed visual product search
+- [x] Market intelligence — `market_report`, 90-day price trajectories, price & deal watches → Inbox
+- [x] Deal & lead radar — query watches scan for better offers; seller sees unclosed buyers + `buyer_walked` alerts
+- [x] Close-rate KPI + bulk CSV catalog import for sellers
+- [x] Actionable Inbox — product links on cards & deal alerts, manual "Check now" watchdog trigger
+- [x] Onboarding checklist + kanban order pipeline
+- [x] 24 invariant tests — policy caps/allowlist, merchant floor law, demo tool surface, i18n parity
 - [ ] Neon Realtime live dashboard updates
 
 <img src="docs/parley-divider.svg" width="100%" alt="" />
