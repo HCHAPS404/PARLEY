@@ -58,12 +58,21 @@ export async function GET() {
     if (leads.length >= 10) break;
   }
 
+  // Conversion — of the threads the agent touched, how many closed.
+  const threadCount = seen.size;
+  const conversionPct =
+    threadCount > 0 ? Math.round((sales.length / threadCount) * 100) : 0;
+  const avgSaleCents = sales.length
+    ? Math.round(sales.reduce((s, x) => s + x.agreedCents, 0) / sales.length)
+    : 0;
+
   return NextResponse.json({
     profile: profile ?? null,
     products,
     sales,
     events: events.slice(0, 30),
     leads,
+    stats: { threads: threadCount, conversionPct, avgSaleCents },
   });
 }
 
@@ -83,6 +92,7 @@ export async function POST(req: Request) {
     saleId?: string;
     trackingNumber?: string;
     carrier?: string;
+    csv?: string;
   };
   await ensureDb();
   const db = getDb();
@@ -133,6 +143,48 @@ export async function POST(req: Request) {
       stock: Math.max(0, Math.round(Number(body.stock) || 10)),
     });
     return NextResponse.json({ ok: true, id });
+  }
+
+  if (body.action === "importCsv") {
+    // Bulk catalog load — one "title,price[,stock]" per line, commas inside
+    // titles unsupported (keep it honest and simple).
+    const [profile] = await db
+      .select()
+      .from(merchantProfiles)
+      .where(eq(merchantProfiles.userId, user.id))
+      .limit(1);
+    if (!profile) return NextResponse.json({ error: "Create your merchant profile first" }, { status: 400 });
+    const lines = String(body.csv ?? "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 100);
+    const rows = lines
+      .map((l) => l.split(",").map((c) => c.trim()))
+      .map(([title, price, stock]) => ({
+        title: (title ?? "").slice(0, 120),
+        priceCents: Math.round(Number(price) * 100),
+        stock: Math.max(0, Math.round(Number(stock) || 10)),
+      }))
+      .filter((r) => r.title && Number.isInteger(r.priceCents) && r.priceCents > 0);
+    if (!rows.length)
+      return NextResponse.json({ error: "No valid rows — use title,price[,stock] per line" }, { status: 400 });
+    for (const r of rows) {
+      await db.insert(sellerProducts).values({
+        id: `sp_${crypto.randomUUID().slice(0, 8)}`,
+        userId: user.id,
+        title: r.title,
+        priceCents: r.priceCents,
+        stock: r.stock,
+      });
+    }
+    await audit({
+      actor: "user", action: "seller_catalog_import",
+      userId: user.id,
+      input: { rows: rows.length },
+      rationale: "Bulk-load the seller catalog their agent negotiates from",
+    });
+    return NextResponse.json({ ok: true, imported: rows.length });
   }
 
   if (body.action === "ship") {

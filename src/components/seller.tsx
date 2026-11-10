@@ -24,9 +24,11 @@ const EV_KEY = {
 
 export function SellerDashboard() {
   const { t } = usePrefs();
-  const [data, setData] = useState<{ profile: Profile | null; products: Product[]; sales: Sale[]; events: SellerEvent[]; leads: Lead[] } | null>(null);
+  const [data, setData] = useState<{ profile: Profile | null; products: Product[]; sales: Sale[]; events: SellerEvent[]; leads: Lead[]; stats?: { threads: number; conversionPct: number; avgSaleCents: number } } | null>(null);
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
+  const [csvText, setCsvText] = useState("");
+  const [showCsv, setShowCsv] = useState(false);
   const [shipTrack, setShipTrack] = useState<Record<string, string>>({});
   const [shipCarrier, setShipCarrier] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -59,7 +61,7 @@ export function SellerDashboard() {
       </div>
     );
 
-  const { profile, products, sales, events, leads } = data;
+  const { profile, products, sales, events, leads, stats } = data;
   const revenue = sales.reduce((s, x) => s + x.agreedCents, 0);
 
   if (!profile)
@@ -77,11 +79,12 @@ export function SellerDashboard() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { icon: Handshake, label: t("sell.kpi.sales"), value: String(sales.length) },
           { icon: BadgeDollarSign, label: t("sell.kpi.revenue"), value: usd(revenue) },
           { icon: Boxes, label: t("sell.kpi.products"), value: String(products.length) },
+          { icon: TrendingUp, label: t("sell.kpi.conversion"), value: `${stats?.conversionPct ?? 0}%` },
         ].map(({ icon: Icon, label, value }) => (
           <div key={label} className="rounded-xl border border-line bg-card p-4">
             <div className="flex items-center gap-2 text-[11px] text-ink-soft">
@@ -170,7 +173,35 @@ export function SellerDashboard() {
           >
             <Plus className="h-4 w-4" /> {t("sell.add")}
           </button>
+          <button
+            onClick={() => setShowCsv((s) => !s)}
+            className="rounded-md border border-line px-3 py-2 text-[12px] font-medium text-ink-soft transition-colors hover:text-ink"
+            title={t("sell.csvHint")}
+          >
+            CSV
+          </button>
         </div>
+        {showCsv && (
+          <div className="mt-3">
+            <textarea
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              rows={4}
+              placeholder={t("sell.csvPlaceholder")}
+              className="w-full rounded-md border border-line bg-paper px-3 py-2 font-mono text-[12px] outline-none focus:border-accent"
+            />
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-[11px] text-ink-soft">{t("sell.csvHint")}</span>
+              <button
+                onClick={() => { post({ action: "importCsv", csv: csvText }); setCsvText(""); setShowCsv(false); }}
+                disabled={busy || !csvText.trim()}
+                className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white hover:bg-accent-strong disabled:opacity-50"
+              >
+                {t("sell.csvImport")}
+              </button>
+            </div>
+          </div>
+        )}
         {products.length === 0 ? (
           <p className="mt-4 text-center text-[12px] text-ink-soft">{t("sell.noProducts")}</p>
         ) : (

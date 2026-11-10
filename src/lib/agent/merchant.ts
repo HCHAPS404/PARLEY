@@ -79,7 +79,9 @@ export function merchantRound(input: {
       message: `That's tight for me. Best I can do is ${usd(floorCents)} — take it and it's yours.`,
     };
   }
-  const counter = Math.round((input.offerCents + floorCents) / 2);
+  // Low offer — counter inside the profitable band (floor → list), so the
+  // floor is never offered away and later rounds still have room to concede.
+  const counter = Math.round((floorCents + input.listPriceCents) / 2);
   return {
     action: "counter",
     priceCents: counter,

@@ -11,6 +11,77 @@ export interface PolicyDecision {
   remainingMonthlyCents: number;
 }
 
+export interface PolicyLimits {
+  maxPerTxCents: number;
+  dailyCapCents: number;
+  monthlyCapCents: number;
+  autonomousLimitCents: number;
+  allowedVendors: string[] | null;
+  active: boolean;
+}
+
+/**
+ * The pure decision — no DB, no clock. Every spending rule lives here so the
+ * gate can be unit-tested exhaustively; checkPolicy only feeds it numbers.
+ */
+export function evaluatePolicy(input: {
+  policy: PolicyLimits | null;
+  amountCents: number;
+  daySpendCents: number;
+  monthSpendCents: number;
+  vendor?: string;
+}): PolicyDecision {
+  const fail = (reason: string): PolicyDecision => ({
+    allow: false,
+    requiresApproval: true,
+    reason,
+    remainingDailyCents: 0,
+    remainingMonthlyCents: 0,
+  });
+
+  const { policy } = input;
+  if (!policy || !policy.active) return fail("No active spend policy configured");
+
+  const allowed = policy.allowedVendors;
+  if (allowed?.length && input.vendor) {
+    const ok = allowed.some((v) =>
+      input.vendor!.toLowerCase().includes(v.toLowerCase()),
+    );
+    if (!ok) return fail(`Vendor "${input.vendor}" is not on the allowlist`);
+  }
+
+  if (input.amountCents > policy.maxPerTxCents) {
+    return fail(
+      `Amount $${(input.amountCents / 100).toFixed(2)} exceeds per-transaction cap of $${(policy.maxPerTxCents / 100).toFixed(2)}`,
+    );
+  }
+
+  const remainingDaily = policy.dailyCapCents - input.daySpendCents;
+  const remainingMonthly = policy.monthlyCapCents - input.monthSpendCents;
+
+  if (input.amountCents > remainingDaily) {
+    return fail(
+      `Daily cap reached — $${(remainingDaily / 100).toFixed(2)} left of $${(policy.dailyCapCents / 100).toFixed(2)} today`,
+    );
+  }
+  if (input.amountCents > remainingMonthly) {
+    return fail(
+      `Monthly cap reached — $${(remainingMonthly / 100).toFixed(2)} left of $${(policy.monthlyCapCents / 100).toFixed(2)} this month`,
+    );
+  }
+
+  return {
+    allow: true,
+    requiresApproval: input.amountCents > policy.autonomousLimitCents,
+    reason:
+      input.amountCents > policy.autonomousLimitCents
+        ? `Within caps — human approval required (above $${(policy.autonomousLimitCents / 100).toFixed(2)} autonomous limit)`
+        : "Within caps and under autonomous limit",
+    remainingDailyCents: remainingDaily - input.amountCents,
+    remainingMonthlyCents: remainingMonthly - input.amountCents,
+  };
+}
+
 /**
  * The deterministic spending gate. This code — never the model — decides
  * whether money may move. The agent proposes; the policy engine disposes.
@@ -35,30 +106,6 @@ export async function checkPolicy(input: {
     ? spaceRows
     : await db.select().from(policies).where(eq(policies.id, "default")).limit(1);
 
-  const fail = (reason: string): PolicyDecision => ({
-    allow: false,
-    requiresApproval: true,
-    reason,
-    remainingDailyCents: 0,
-    remainingMonthlyCents: 0,
-  });
-
-  if (!policy || !policy.active) return fail("No active spend policy configured");
-
-  const allowed = policy.allowedVendors as string[] | null;
-  if (allowed?.length && input.vendor) {
-    const ok = allowed.some((v) =>
-      input.vendor!.toLowerCase().includes(v.toLowerCase()),
-    );
-    if (!ok) return fail(`Vendor "${input.vendor}" is not on the allowlist`);
-  }
-
-  if (input.amountCents > policy.maxPerTxCents) {
-    return fail(
-      `Amount $${(input.amountCents / 100).toFixed(2)} exceeds per-transaction cap of $${(policy.maxPerTxCents / 100).toFixed(2)}`,
-    );
-  }
-
   // Spend caps count only orders in the same space — Client A's budget
   // can never be consumed by Client B's purchases.
   const spendRes = (await db.execute(sql`
@@ -75,30 +122,20 @@ export async function checkPolicy(input: {
     : (spendRes as { rows?: unknown[] })?.rows ?? [];
   const spend = rows[0] as { day_spend: number; month_spend: number } | undefined;
 
-  const daySpend = Number(spend?.day_spend ?? 0);
-  const monthSpend = Number(spend?.month_spend ?? 0);
-  const remainingDaily = policy.dailyCapCents - daySpend;
-  const remainingMonthly = policy.monthlyCapCents - monthSpend;
-
-  if (input.amountCents > remainingDaily) {
-    return fail(
-      `Daily cap reached — $${(remainingDaily / 100).toFixed(2)} left of $${(policy.dailyCapCents / 100).toFixed(2)} today`,
-    );
-  }
-  if (input.amountCents > remainingMonthly) {
-    return fail(
-      `Monthly cap reached — $${(remainingMonthly / 100).toFixed(2)} left of $${(policy.monthlyCapCents / 100).toFixed(2)} this month`,
-    );
-  }
-
-  return {
-    allow: true,
-    requiresApproval: input.amountCents > policy.autonomousLimitCents,
-    reason:
-      input.amountCents > policy.autonomousLimitCents
-        ? `Within caps — human approval required (above $${(policy.autonomousLimitCents / 100).toFixed(2)} autonomous limit)`
-        : "Within caps and under autonomous limit",
-    remainingDailyCents: remainingDaily - input.amountCents,
-    remainingMonthlyCents: remainingMonthly - input.amountCents,
-  };
+  return evaluatePolicy({
+    policy: policy
+      ? {
+          maxPerTxCents: policy.maxPerTxCents,
+          dailyCapCents: policy.dailyCapCents,
+          monthlyCapCents: policy.monthlyCapCents,
+          autonomousLimitCents: policy.autonomousLimitCents,
+          allowedVendors: policy.allowedVendors as string[] | null,
+          active: policy.active,
+        }
+      : null,
+    amountCents: input.amountCents,
+    daySpendCents: Number(spend?.day_spend ?? 0),
+    monthSpendCents: Number(spend?.month_spend ?? 0),
+    vendor: input.vendor,
+  });
 }

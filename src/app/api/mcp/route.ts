@@ -170,6 +170,24 @@ export async function POST(req: Request) {
           },
         });
       }
+      // A walk leaves a warm lead on the table — surface it to the seller.
+      if (resp.action === "walk" && profile) {
+        const db = getDb();
+        const [sellerSpace] = await db
+          .select({ id: spaces.id })
+          .from(spaces)
+          .where(eq(spaces.userId, profile.userId))
+          .limit(1);
+        await db.insert(alerts).values({
+          kind: "buyer_walked",
+          spaceId: sellerSpace?.id ?? null,
+          payload: {
+            title: `Buyer walked on "${String(args?.productTitle ?? "item").slice(0, 80)}"`,
+            priceUsd: offerCents / 100,
+            reason: `${args?.buyerLabel ? `${args.buyerLabel} ` : "A buyer"}offered $${(offerCents / 100).toFixed(2)} — under your agent's floor. Consider a promo or a lower list price to win them back.`,
+          },
+        });
+      }
       return rpc(body.id, resp);
     }
     return rpc(body.id, undefined, { code: -32601, message: `Unknown tool: ${name}` });
