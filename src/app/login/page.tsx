@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand";
@@ -62,13 +63,17 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <Logo className="mx-auto h-10 w-10 text-accent" />
-          <h1 className="font-display mt-4 text-xl font-semibold tracking-tight">
+        <Link
+          href="/"
+          className="group mb-8 block text-center"
+          title={t("login.backToSite")}
+        >
+          <Logo className="mx-auto h-16 w-16 text-accent transition-transform duration-200 group-hover:scale-105" />
+          <h1 className="font-display mt-4 text-xl font-semibold tracking-tight transition-colors group-hover:text-accent-strong">
             Parley
           </h1>
           <p className="mt-1 text-[13px] text-ink-soft">{t("login.subtitle")}</p>
-        </div>
+        </Link>
 
         <form
           onSubmit={submit}

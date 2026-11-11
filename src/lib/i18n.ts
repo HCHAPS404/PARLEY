@@ -86,7 +86,8 @@ const en = {
   "login.noAccount": "New here? Create an account",
   "login.hasAccount": "Already have an account? Sign in",
   "login.demoNote":
-    "Public accounts are demo users — they can search and negotiate, but cannot move funds.",
+    "New accounts get the full buyer agent — search, negotiate, and escrow orders gated by your own spend policy.",
+  "login.backToSite": "Back to site",
   "login.working": "Working…",
 
   "settings.title": "Settings",
@@ -425,7 +426,8 @@ const es: Record<I18nKey, string> = {
   "login.noAccount": "¿Nuevo aquí? Crea una cuenta",
   "login.hasAccount": "¿Ya tienes cuenta? Entra",
   "login.demoNote":
-    "Las cuentas públicas son demo — pueden buscar y negociar, pero no mueven fondos.",
+    "Las cuentas nuevas tienen el agente comprador completo — busca, negocia y crea escrows bajo tu propia política de gasto.",
+  "login.backToSite": "Volver al sitio",
   "login.working": "Un momento…",
 
   "settings.title": "Ajustes",
