@@ -7,6 +7,7 @@ import {
   ArrowUp,
   BadgeDollarSign,
   Handshake,
+  ImagePlus,
   Loader2,
   Percent,
   Plus,
@@ -22,7 +23,7 @@ import { Markdown } from "./markdown";
 import Link from "next/link";
 
 interface Profile { id: string; displayName: string; floorRatioPct: number; style: string }
-interface Product { id: string; title: string; priceCents: number; stock: number }
+interface Product { id: string; title: string; priceCents: number; stock: number; image: string | null }
 interface Sale { id: string; productTitle: string; agreedCents: number; listCents: number | null; buyerLabel: string | null; trackingNumber?: string | null; status: string; createdAt: string }
 interface SellerEvent { id: string; productTitle: string; buyerLabel: string | null; kind: string; offerCents: number | null; counterCents: number | null; message: string | null; createdAt: string }
 interface Lead { buyerLabel: string | null; productTitle: string; kind: string; offerCents: number | null; counterCents: number | null; at: string }
@@ -40,6 +41,24 @@ interface Stats {
 }
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
+
+/** Photo → small JPEG data URL for the catalog (~800px, quality 0.8). */
+function fileToProductImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 800;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
 
 const EV_KEY = {
   offer: "sell.ev.offer",
@@ -62,6 +81,7 @@ export function SellerDashboard({ view }: { view: SellerView }) {
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
   const [pStock, setPStock] = useState("");
+  const [pImage, setPImage] = useState<string | null>(null);
   const [csvText, setCsvText] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [showCsv, setShowCsv] = useState(false);
@@ -148,7 +168,7 @@ export function SellerDashboard({ view }: { view: SellerView }) {
         />
         <h2 className="mt-4 font-display text-lg font-semibold">{t("sell.empty.title")}</h2>
         <p className="mt-1 text-sm text-ink-soft">{t("sell.empty.sub")}</p>
-        <Link href="/settings" className="mt-4 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-strong">
+        <Link href="/settings" className="mt-4 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-paper hover:bg-accent-strong">
           {t("sell.empty.cta")}
         </Link>
       </div>
@@ -315,6 +335,37 @@ export function SellerDashboard({ view }: { view: SellerView }) {
               <span className="text-[11px] text-ink-soft">{t("sell.catalogHint")}</span>
             </div>
             <div className="flex gap-2">
+              {/* Image picker — the photo buyers see in search */}
+              <label
+                className="relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-md border border-dashed border-line bg-paper text-ink-soft transition-colors hover:border-accent hover:text-accent"
+                title={t("sell.photo")}
+              >
+                {pImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={pImage} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <ImagePlus className="h-4 w-4" />
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    setPImage(await fileToProductImage(f));
+                    e.target.value = "";
+                  }}
+                />
+                {pImage && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); setPImage(null); }}
+                    className="absolute right-0 top-0 rounded-bl bg-black/60 p-0.5 text-white"
+                  >
+                    ×
+                  </button>
+                )}
+              </label>
               <input
                 value={pTitle}
                 onChange={(e) => setPTitle(e.target.value)}
@@ -334,9 +385,9 @@ export function SellerDashboard({ view }: { view: SellerView }) {
                 className="w-16 rounded-md border border-line bg-paper px-3 py-2 text-[13px] outline-none focus:border-accent"
               />
               <button
-                onClick={() => { post({ action: "addProduct", title: pTitle, priceUsd: Number(pPrice), stock: Number(pStock) || 10 }); setPTitle(""); setPPrice(""); setPStock(""); }}
+                onClick={() => { post({ action: "addProduct", title: pTitle, priceUsd: Number(pPrice), stock: Number(pStock) || 10, image: pImage ?? undefined }); setPTitle(""); setPPrice(""); setPStock(""); setPImage(null); }}
                 disabled={busy || !pTitle.trim() || !pPrice}
-                className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[13px] font-medium text-white hover:bg-accent-strong disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[13px] font-medium text-paper hover:bg-accent-strong disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" /> {t("sell.add")}
               </button>
@@ -369,7 +420,7 @@ export function SellerDashboard({ view }: { view: SellerView }) {
                       }
                     }}
                     disabled={busy || !csvText.trim()}
-                    className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white hover:bg-accent-strong disabled:opacity-50"
+                    className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-paper hover:bg-accent-strong disabled:opacity-50"
                   >
                     {t("sell.csvImport")}
                   </button>
@@ -379,88 +430,110 @@ export function SellerDashboard({ view }: { view: SellerView }) {
             {products.length === 0 ? (
               <p className="mt-4 text-center text-[12px] text-ink-soft">{t("sell.noProducts")}</p>
             ) : (
-              <ul className="mt-3 divide-y divide-line/60">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {products.map((p) => {
                   const camp = campaignFor(p.id);
                   const low = p.stock <= 3;
                   const editing = editId === p.id;
                   return (
-                    <li key={p.id} className="py-2 text-[13px]">
-                      <div className="flex items-center justify-between">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate">{p.title}</span>
-                          {camp && (
-                            <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent-strong">
-                              −{camp.pctOff}%
-                            </span>
-                          )}
-                          {low && (
-                            <span className="shrink-0 rounded-full bg-warn/15 px-2 py-0.5 text-[10px] font-semibold text-warn">
-                              {t("sell.lowStock")}
-                            </span>
-                          )}
-                        </span>
-                        <span className="ml-3 flex shrink-0 items-center gap-3">
-                          <span className="font-medium">
+                    <div key={p.id} className="group overflow-hidden rounded-lg border border-line bg-paper">
+                      {/* Product photo */}
+                      <div className="relative h-28 bg-card">
+                        {p.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.image} alt={p.title} className="h-full w-full object-cover" />
+                        ) : (
+                          <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1 text-ink-soft transition-colors hover:text-accent">
+                            <ImagePlus className="h-5 w-5" />
+                            <span className="text-[10px]">{t("sell.addPhoto")}</span>
+                            <input
+                              type="file" accept="image/*" className="sr-only"
+                              onChange={async (e) => {
+                                const f = e.target.files?.[0];
+                                if (!f) return;
+                                const img = await fileToProductImage(f);
+                                post({ action: "updateProduct", productId: p.id, image: img });
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                        {camp && (
+                          <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-paper">
+                            −{camp.pctOff}%
+                          </span>
+                        )}
+                        {low && (
+                          <span className="absolute right-2 top-2 rounded-full bg-warn px-2 py-0.5 text-[10px] font-bold text-paper">
+                            {t("sell.lowStock")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-2.5">
+                        <div className="truncate text-[13px] font-medium" title={p.title}>{p.title}</div>
+                        <div className="mt-0.5 flex items-center justify-between text-[12px]">
+                          <span>
                             {camp ? (
                               <>
                                 <span className="mr-1.5 text-ink-soft line-through">{usd(p.priceCents)}</span>
-                                <span className="text-accent-strong">{usd(Math.round(p.priceCents * (100 - camp.pctOff) / 100))}</span>
+                                <span className="font-semibold text-accent-strong">{usd(Math.round(p.priceCents * (100 - camp.pctOff) / 100))}</span>
                               </>
                             ) : (
-                              usd(p.priceCents)
+                              <span className="font-semibold">{usd(p.priceCents)}</span>
                             )}
                           </span>
                           <span className="text-[11px] text-ink-soft">×{p.stock}</span>
+                        </div>
+                        <div className="mt-2 flex gap-1.5">
                           <button
                             onClick={() => {
                               setEditId(editing ? null : p.id);
                               setEditPrice((p.priceCents / 100).toFixed(2));
                               setEditStock(String(p.stock));
                             }}
-                            className="text-[11px] font-medium text-ink-soft hover:text-accent"
+                            className="flex-1 rounded-md border border-line py-1 text-[11px] font-medium text-ink-soft hover:border-accent hover:text-accent-strong"
                           >
                             {t("sell.edit")}
                           </button>
                           <button
                             onClick={() => post({ action: "removeProduct", productId: p.id })}
-                            className="text-ink-soft transition-colors hover:text-danger"
+                            className="rounded-md border border-line px-2 py-1 text-ink-soft transition-colors hover:border-danger hover:text-danger"
                             title={t("sell.remove")}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
-                        </span>
-                      </div>
-                      {editing && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <input
-                            value={editPrice}
-                            onChange={(e) => setEditPrice(e.target.value)}
-                            type="number" min={0.01} step="0.01" placeholder="$"
-                            className="w-24 rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
-                          />
-                          <input
-                            value={editStock}
-                            onChange={(e) => setEditStock(e.target.value)}
-                            type="number" min={0} placeholder={t("sell.stockPh")}
-                            className="w-20 rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
-                          />
-                          <button
-                            onClick={async () => {
-                              await post({ action: "updateProduct", productId: p.id, priceUsd: Number(editPrice), stock: Number(editStock) });
-                              setEditId(null);
-                            }}
-                            disabled={busy}
-                            className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-50"
-                          >
-                            {t("sell.save")}
-                          </button>
                         </div>
-                      )}
-                    </li>
+                        {editing && (
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <input
+                              value={editPrice}
+                              onChange={(e) => setEditPrice(e.target.value)}
+                              type="number" min={0.01} step="0.01" placeholder="$"
+                              className="w-16 rounded-md border border-line bg-card px-2 py-1 text-[11px] outline-none focus:border-accent"
+                            />
+                            <input
+                              value={editStock}
+                              onChange={(e) => setEditStock(e.target.value)}
+                              type="number" min={0} placeholder={t("sell.stockPh")}
+                              className="w-14 rounded-md border border-line bg-card px-2 py-1 text-[11px] outline-none focus:border-accent"
+                            />
+                            <button
+                              onClick={async () => {
+                                await post({ action: "updateProduct", productId: p.id, priceUsd: Number(editPrice), stock: Number(editStock) });
+                                setEditId(null);
+                              }}
+                              disabled={busy}
+                              className="flex-1 rounded-md bg-accent py-1 text-[11px] font-medium text-paper disabled:opacity-50"
+                            >
+                              {t("sell.save")}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
             )}
           </div>
 
@@ -527,7 +600,7 @@ export function SellerDashboard({ view }: { view: SellerView }) {
                       }
                     }}
                     disabled={busy || !cName.trim() || !cPct}
-                    className="rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50"
+                    className="rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-paper disabled:opacity-50"
                   >
                     {t("sell.launch")}
                   </button>
@@ -761,7 +834,7 @@ function SellerCopilot({ onAction }: { onAction: () => void }) {
           return (
             <div key={m.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] ${
-                isUser ? "bg-accent text-white" : "border border-line bg-paper"
+                isUser ? "bg-accent text-paper" : "border border-line bg-paper"
               }`}>
                 {m.parts.map((part, i) => {
                   if (part.type === "text") {
@@ -820,7 +893,7 @@ function SellerCopilot({ onAction }: { onAction: () => void }) {
         <button
           type="submit"
           disabled={busy || !input.trim()}
-          className="rounded-lg bg-accent px-3.5 py-2 text-white hover:bg-accent-strong disabled:opacity-50"
+          className="rounded-lg bg-accent px-3.5 py-2 text-paper hover:bg-accent-strong disabled:opacity-50"
         >
           <ArrowUp className="h-4 w-4" />
         </button>

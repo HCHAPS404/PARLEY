@@ -190,6 +190,7 @@ alter table merchant_sales add column if not exists buyer_order_id text;
 alter table merchant_sales add column if not exists tracking_number text;
 alter table merchant_sales add column if not exists carrier text;
 alter table merchant_sales add column if not exists list_cents integer;
+alter table seller_products add column if not exists image text;
 create table if not exists seller_campaigns (
   id text primary key,
   user_id text not null,

@@ -39,10 +39,10 @@ const NAV_SELLER = [
   { href: "/settings", key: "nav.settings", icon: Settings },
 ] as const;
 
-/** Store console — an expandable group under "My store". */
+/** Store console — an expandable group under "My store". Copilot stays a
+ * top-level item: the seller's chatbot must be one click away, not nested. */
 const NAV_STORE = [
   { href: "/seller", key: "nav.seller.overview", icon: LayoutDashboard, exact: true },
-  { href: "/seller/copilot", key: "nav.seller.copilot", icon: Sparkles },
   { href: "/seller/inventory", key: "nav.seller.inventory", icon: Boxes },
   { href: "/seller/orders", key: "nav.seller.orders", icon: Package },
 ] as const;
@@ -58,16 +58,29 @@ export function AppShell({
   const router = useRouter();
   const [inboxCount, setInboxCount] = useState(0);
   const [storeOpen, setStoreOpen] = useState(true);
+  const [storePulse, setStorePulse] = useState<{
+    profile: { displayName: string; floorRatioPct: number } | null;
+    stats?: { pendingShipCount: number; lowStockCount: number };
+    campaigns?: { active: boolean; endsAt: string | null }[];
+    fetchedAt: number;
+  } | null>(null);
   useEffect(() => {
-    const load = () =>
+    const load = () => {
       fetch("/api/alerts")
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => d && setInboxCount(d.alerts?.length ?? 0))
         .catch(() => {});
+      if (user.persona === "seller") {
+        fetch("/api/seller")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => d && setStorePulse({ ...d, fetchedAt: Date.now() }))
+          .catch(() => {});
+      }
+    };
     load();
     const id = setInterval(load, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [user.persona]);
   const { t, lang, setLang, theme, setTheme } = usePrefs();
 
   const logout = async () => {
@@ -94,7 +107,9 @@ export function AppShell({
           </div>
         </div>
 
-        <SpaceSwitcher />
+        {/* Spaces are a buyer-side concept (budgets/orders per context) —
+            a seller's store is global, so the switcher stays hidden. */}
+        {user.persona !== "seller" && <SpaceSwitcher />}
 
         <nav className="flex flex-col gap-1 p-3 text-sm">
           {user.persona === "seller" && (
@@ -139,6 +154,22 @@ export function AppShell({
               )}
             </div>
           )}
+          {user.persona === "seller" && (
+            <Link
+              href="/seller/copilot"
+              className={`flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors ${
+                pathname === "/seller/copilot"
+                  ? "bg-accent-mist font-medium text-accent-strong"
+                  : "text-ink-soft hover:bg-paper hover:text-ink"
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              {t("nav.seller.copilot")}
+              <span className="ml-auto rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent-strong">
+                AI
+              </span>
+            </Link>
+          )}
           {(user.persona === "seller" ? NAV_SELLER : NAV_BUYER).map(({ href, key, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
@@ -162,6 +193,45 @@ export function AppShell({
             );
           })}
         </nav>
+
+        {/* Store pulse — keeps the seller sidebar alive between nav and footer */}
+        {user.persona === "seller" && storePulse?.profile && (
+          <div className="mx-3 mt-2 rounded-xl border border-line bg-paper p-3">
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute h-full w-full animate-ping rounded-full bg-ok/60" />
+                <span className="h-2 w-2 rounded-full bg-ok" />
+              </span>
+              {t("sidebar.agentLive")}
+            </div>
+            <div className="mt-1.5 truncate text-[13px] font-semibold">
+              {storePulse.profile.displayName}
+            </div>
+            <div className="mt-2 space-y-1 text-[11px] text-ink-soft">
+              <div className="flex justify-between">
+                <span>{t("sidebar.floor")}</span>
+                <span className="font-semibold text-ink">{storePulse.profile.floorRatioPct}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("sidebar.liveCampaigns")}</span>
+                <span className="font-semibold text-ink">
+                  {(storePulse.campaigns ?? []).filter(
+                    (c) => c.active && (!c.endsAt || new Date(c.endsAt).getTime() > storePulse.fetchedAt),
+                  ).length}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>{t("sidebar.toShip")}</span>
+                <span className="font-semibold text-ink">{storePulse.stats?.pendingShipCount ?? 0}</span>
+              </div>
+              {(storePulse.stats?.lowStockCount ?? 0) > 0 && (
+                <div className="mt-1 rounded-md bg-warn/10 px-2 py-1 text-[10px] font-medium text-warn">
+                  {t("sidebar.lowStock", { n: String(storePulse.stats!.lowStockCount) })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-auto space-y-3 border-t border-line p-4">
           <div className="space-y-2 text-[11px] text-ink-soft">

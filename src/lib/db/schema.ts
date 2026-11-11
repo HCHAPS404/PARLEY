@@ -197,6 +197,7 @@ export const sellerProducts = pgTable("seller_products", {
   priceCents: integer("price_cents").notNull(),
   currency: text("currency").notNull().default("USD"),
   stock: integer("stock").notNull().default(10),
+  image: text("image"), // data URL or https photo — shown to buyer agents
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

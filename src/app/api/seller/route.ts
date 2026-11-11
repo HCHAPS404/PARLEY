@@ -7,6 +7,15 @@ import { audit } from "@/lib/audit";
 
 export const maxDuration = 30;
 
+/** Product photos: data URLs (resized client-side) or https — nothing else. */
+function cleanImage(v: unknown): string | null {
+  const s = typeof v === "string" ? v.trim() : "";
+  if (!s) return null;
+  if (s.startsWith("data:image/") && s.length < 400_000) return s;
+  if (s.startsWith("https://") && s.length < 2000) return s;
+  return null;
+}
+
 /** Seller-side state: my merchant profile, my catalog, my agent's sales. */
 export async function GET() {
   const user = await getSessionUser();
@@ -150,6 +159,7 @@ export async function POST(req: Request) {
     pctOff?: number;
     days?: number;
     campaignId?: string;
+    image?: string;
   };
   await ensureDb();
   const db = getDb();
@@ -195,9 +205,11 @@ export async function POST(req: Request) {
       .limit(1);
     if (!profile) return NextResponse.json({ error: "Create your merchant profile first" }, { status: 400 });
     const id = `sp_${crypto.randomUUID().slice(0, 8)}`;
+    const image = cleanImage(body.image);
     await db.insert(sellerProducts).values({
       id, userId: user.id, title, priceCents,
       stock: Math.max(0, Math.round(Number(body.stock) || 10)),
+      ...(image ? { image } : {}),
     });
     return NextResponse.json({ ok: true, id });
   }
@@ -313,7 +325,9 @@ export async function POST(req: Request) {
   if (body.action === "updateProduct") {
     const priceUsd = Number(body.priceUsd);
     const stock = Math.round(Number(body.stock));
-    const fields: Partial<{ priceCents: number; stock: number }> = {};
+    const fields: Partial<{ priceCents: number; stock: number; image: string | null }> = {};
+    const image = cleanImage(body.image);
+    if (body.image !== undefined) fields.image = image;
     if (Number.isFinite(priceUsd) && priceUsd > 0) fields.priceCents = Math.round(priceUsd * 100);
     if (Number.isInteger(stock) && stock >= 0) fields.stock = stock;
     if (!Object.keys(fields).length)
