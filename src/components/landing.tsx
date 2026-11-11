@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Logo } from "./brand";
 import { usePrefs } from "./preferences";
+import { Reveal, useReducedMotion, useScrollProgress } from "./scroll-fx";
 import type { I18nKey } from "@/lib/i18n";
 
 /* Dark-premium landing — fixed palette, independent of app theme. */
@@ -36,9 +37,29 @@ const TEAL = "text-[#2dd4bf]";
 export function Landing({ authed }: { authed: boolean }) {
   const { t, lang, setLang } = usePrefs();
   const router = useRouter();
+  const [scrollY, setScrollY] = useState(0);
+  useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  const pageProgress = () => {
+    if (typeof document === "undefined") return 0;
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    return total > 0 ? Math.min(1, scrollY / total) : 0;
+  };
+  /* hero mockup drifts down + shrinks a touch as you scroll away */
+  const reduced = useReducedMotion();
+  const heroDrift = reduced ? 0 : Math.min(scrollY / 900, 1);
 
   return (
     <div className={`min-h-screen ${BG} ${INK}`}>
+      {/* scroll progress */}
+      <div
+        className="fixed left-0 top-0 z-[60] h-[2px] bg-gradient-to-r from-[#0d9488] to-[#2dd4bf] transition-[width] duration-150 ease-out motion-reduce:hidden"
+        style={{ width: `${pageProgress() * 100}%` }}
+      />
       {/* ── Nav ─────────────────────────────────────────── */}
       <header className={`fixed inset-x-0 top-0 z-50 border-b ${LINE} ${BG}/70 backdrop-blur-xl`}>
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-5">
@@ -140,7 +161,13 @@ export function Landing({ authed }: { authed: boolean }) {
           </div>
 
           {/* Product mockup — animated demo inside a browser frame */}
-          <div className="relative mx-auto mt-16 max-w-3xl">
+          <div
+            className="relative mx-auto mt-16 max-w-3xl will-change-transform"
+            style={{
+              transform: `translateY(${heroDrift * 48}px) scale(${1 - heroDrift * 0.05})`,
+              opacity: 1 - heroDrift * 0.35,
+            }}
+          >
             <div className="pointer-events-none absolute -inset-x-8 -top-8 h-40 bg-[#14b8a6]/15 blur-[80px]" />
             <div className={`relative rounded-2xl border ${LINE} ${CARD} shadow-[0_40px_80px_-20px_rgba(0,0,0,0.8)]`}>
               {/* browser chrome */}
@@ -202,101 +229,12 @@ export function Landing({ authed }: { authed: boolean }) {
         </div>
       </section>
 
-      {/* ── Bento: how it works ─────────────────────────── */}
-      <section id="how" className="relative mx-auto max-w-6xl px-5 py-24">
-        <div className="pointer-events-none absolute right-0 top-20 h-72 w-72 rounded-full bg-[#14b8a6]/8 blur-[100px]" />
-        <h2 className="font-display text-center text-3xl font-semibold tracking-tight sm:text-5xl">
-          {t("land.how.title")}
-        </h2>
-        <p className={`mx-auto mt-4 max-w-xl text-center text-[14px] ${SOFT}`}>
-          {t("land.how.sub")}
-        </p>
-
-        <div className="mt-14 grid gap-4 lg:grid-cols-6">
-          {/* Discover — large image card */}
-          <div className={`group relative overflow-hidden rounded-2xl border ${LINE} ${CARD} lg:col-span-4`}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- generated brand asset */}
-            <img
-              src="/gen/market-radar.webp"
-              alt={t("land.more.imgAlt")}
-              className="h-64 w-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03] lg:h-72"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#060a09] via-[#060a09]/30 to-transparent" />
-            <div className="absolute bottom-0 p-6">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-[#2dd4bf]">01</span>
-              <h3 className="mt-1.5 text-[17px] font-semibold">{t("land.how.discover.t")}</h3>
-              <p className={`mt-1.5 max-w-md text-[13px] leading-5 ${SOFT}`}>
-                {t("land.how.discover.d")}
-              </p>
-            </div>
-          </div>
-
-          {/* Negotiate */}
-          <div className={`group relative overflow-hidden rounded-2xl border ${LINE} ${CARD} lg:col-span-2`}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- generated brand asset */}
-            <img
-              src="/gen/negotiation-loop.webp"
-              alt=""
-              className="h-44 w-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]"
-              loading="lazy"
-            />
-            <div className="p-6">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-[#2dd4bf]">02</span>
-              <h3 className="mt-1.5 text-[15px] font-semibold">{t("land.how.negotiate.t")}</h3>
-              <p className={`mt-1.5 text-[13px] leading-5 ${SOFT}`}>
-                {t("land.how.negotiate.d")}
-              </p>
-            </div>
-          </div>
-
-          {/* Escrow */}
-          <div className={`group relative overflow-hidden rounded-2xl border ${LINE} ${CARD} lg:col-span-2`}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- generated brand asset */}
-            <img
-              src="/gen/escrow-vault.webp"
-              alt=""
-              className="h-44 w-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]"
-              loading="lazy"
-            />
-            <div className="p-6">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-[#2dd4bf]">03</span>
-              <h3 className="mt-1.5 text-[15px] font-semibold">{t("land.how.escrow.t")}</h3>
-              <p className={`mt-1.5 text-[13px] leading-5 ${SOFT}`}>
-                {t("land.how.escrow.d")}
-              </p>
-            </div>
-          </div>
-
-          {/* Watchdog — wide card with timeline */}
-          <div className={`rounded-2xl border ${LINE} ${CARD} p-6 lg:col-span-4`}>
-            <div className="flex h-full flex-col justify-between gap-6 sm:flex-row sm:items-center">
-              <div className="max-w-sm">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-[#2dd4bf]">04</span>
-                <h3 className="mt-1.5 text-[17px] font-semibold">{t("land.how.watch.t")}</h3>
-                <p className={`mt-1.5 text-[13px] leading-5 ${SOFT}`}>
-                  {t("land.how.watch.d")}
-                </p>
-              </div>
-              {/* escrow lifecycle strip */}
-              <div className="flex items-center gap-0 font-mono text-[10px]">
-                {["authorize", "hold", "deliver", "capture"].map((s, i) => (
-                  <div key={s} className="flex items-center">
-                    <div className={`rounded-lg border ${LINE} bg-[#060a09] px-2.5 py-1.5 ${i === 3 ? "text-[#2dd4bf] border-[#14b8a6]/40" : SOFT}`}>
-                      {s}
-                    </div>
-                    {i < 3 && <div className="h-px w-4 bg-white/15" />}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* ── Scrollytelling: the loop ────────────────────── */}
+      <ScrollStory t={t} />
 
       {/* ── Two agents, one protocol ────────────────────── */}
       <section id="agents" className={`border-y ${LINE} ${CARD}/40`}>
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-24 lg:grid-cols-2">
+        <Reveal className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-24 lg:grid-cols-2">
           <div className="relative order-2 lg:order-1">
             <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-[#14b8a6]/10 blur-[60px]" />
             {/* eslint-disable-next-line @next/next/no-img-element -- generated brand asset */}
@@ -328,7 +266,7 @@ export function Landing({ authed }: { authed: boolean }) {
               ))}
             </ul>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── Beyond sourcing ───────────────────────────── */}
@@ -339,7 +277,7 @@ export function Landing({ authed }: { authed: boolean }) {
         <p className={`mx-auto mt-4 max-w-xl text-center text-[14px] ${SOFT}`}>
           {t("land.more.sub")}
         </p>
-        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Reveal className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {(
             [
               { icon: BarChart3, t: "land.more.market.t", d: "land.more.market.d" },
@@ -361,12 +299,12 @@ export function Landing({ authed }: { authed: boolean }) {
               </p>
             </div>
           ))}
-        </div>
+        </Reveal>
       </section>
 
       {/* ── Escrow explainer ────────────────────────────── */}
       <section className={`border-y ${LINE} ${CARD}/40`}>
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-24 lg:grid-cols-2">
+        <Reveal className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-24 lg:grid-cols-2">
           <div>
             <span className="font-mono text-[10px] uppercase tracking-widest text-[#2dd4bf]">
               PayPal escrow
@@ -433,7 +371,7 @@ export function Landing({ authed }: { authed: boolean }) {
               audited · reconcile-able · dispute-ready
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── Security ────────────────────────────────────── */}
@@ -444,7 +382,7 @@ export function Landing({ authed }: { authed: boolean }) {
         <p className={`mx-auto mt-4 max-w-xl text-center text-[14px] ${SOFT}`}>
           {t("land.sec.sub")}
         </p>
-        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Reveal className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {(
             [
               { icon: Lock, t: "land.sec.policy.t", d: "land.sec.policy.d" },
@@ -466,12 +404,12 @@ export function Landing({ authed }: { authed: boolean }) {
               </p>
             </div>
           ))}
-        </div>
+        </Reveal>
       </section>
 
       {/* ── Final CTA ─────────────────────────────────── */}
       <section className={`border-t ${LINE} ${CARD}/40`}>
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 lg:grid-cols-[1fr_380px]">
+        <Reveal className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 lg:grid-cols-[1fr_380px]">
           <div>
             <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
               {t("land.cta.title")}
@@ -502,7 +440,7 @@ export function Landing({ authed }: { authed: boolean }) {
               loading="lazy"
             />
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── Footer ──────────────────────────────────────── */}
@@ -529,6 +467,153 @@ export function Landing({ authed }: { authed: boolean }) {
         </div>
       </footer>
     </div>
+  );
+}
+
+/* Pinned scroll story — the screen holds while the four stages of the
+   agent loop cycle underneath the scroll (Apple-keynote style). */
+function ScrollStory({ t }: { t: (key: I18nKey) => string }) {
+  const ref = useRef<HTMLElement>(null);
+  const progress = useScrollProgress(ref);
+  const reduced = useReducedMotion();
+
+  const stages = (
+    [
+      { n: "01", img: "/gen/market-radar.webp", tk: "land.how.discover.t", dk: "land.how.discover.d", alt: "land.more.imgAlt" },
+      { n: "02", img: "/gen/negotiation-loop.webp", tk: "land.how.negotiate.t", dk: "land.how.negotiate.d" },
+      { n: "03", img: "/gen/escrow-vault.webp", tk: "land.how.escrow.t", dk: "land.how.escrow.d" },
+      { n: "04", img: "/gen/dashboard-deco.webp", tk: "land.how.watch.t", dk: "land.how.watch.d" },
+    ]
+  ) satisfies { n: string; img: string; tk: I18nKey; dk: I18nKey; alt?: I18nKey }[];
+
+  const idx = Math.min(stages.length - 1, Math.floor(progress * stages.length));
+
+  /* Reduced-motion / no-JS-friendly fallback: plain stacked grid. */
+  if (reduced) {
+    return (
+      <section id="how" className="mx-auto max-w-6xl px-5 py-24">
+        <h2 className="font-display text-center text-3xl font-semibold tracking-tight sm:text-5xl">
+          {t("land.how.title")}
+        </h2>
+        <div className="mt-14 grid gap-4 sm:grid-cols-2">
+          {stages.map((s) => (
+            <div key={s.n} className={`overflow-hidden rounded-2xl border ${LINE} ${CARD}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- generated brand asset */}
+              <img src={s.img} alt="" className="h-40 w-full object-cover" />
+              <div className="p-5">
+                <span className="font-mono text-[10px] uppercase tracking-widest text-[#2dd4bf]">{s.n}</span>
+                <h3 className="mt-1 text-[15px] font-semibold">{t(s.tk)}</h3>
+                <p className={`mt-1 text-[13px] leading-5 ${SOFT}`}>{t(s.dk)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      id="how"
+      ref={ref}
+      className="relative"
+      style={{ height: `${stages.length * 90 + 40}vh` }}
+    >
+      <div className="sticky top-0 flex h-screen items-center overflow-hidden">
+        {/* ambient glow that shifts with the stage */}
+        <div
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#14b8a6] blur-[140px] transition-opacity duration-700"
+          style={{ opacity: 0.06 + idx * 0.02 }}
+        />
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-8 px-5 lg:grid-cols-[1fr_1.15fr] lg:gap-14">
+          {/* left: stage text */}
+          <div>
+            <div className="flex items-baseline justify-between">
+              <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+                {t("land.how.title")}
+              </h2>
+              <span className="font-mono text-[11px] text-[#2dd4bf]">
+                {stages[idx].n} / 0{stages.length}
+              </span>
+            </div>
+            <p className={`mt-2 text-[13px] ${SOFT}`}>{t("land.how.sub")}</p>
+
+            <div className="relative mt-8 h-44 sm:h-36">
+              {stages.map((s, i) => (
+                <div
+                  key={s.n}
+                  className={`absolute inset-0 transition-all duration-500 ease-out ${
+                    i === idx
+                      ? "opacity-100 translate-y-0"
+                      : i < idx
+                        ? "pointer-events-none opacity-0 -translate-y-6"
+                        : "pointer-events-none opacity-0 translate-y-6"
+                  }`}
+                >
+                  <span className="font-mono text-[11px] uppercase tracking-widest text-[#2dd4bf]">
+                    Stage {s.n}
+                  </span>
+                  <h3 className="font-display mt-2 text-2xl font-semibold sm:text-3xl">
+                    {t(s.tk)}
+                  </h3>
+                  <p className={`mt-3 max-w-md text-[14px] leading-6 ${SOFT}`}>
+                    {t(s.dk)}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* progress dots */}
+            <div className="mt-4 flex items-center gap-2">
+              {stages.map((s, i) => (
+                <span
+                  key={s.n}
+                  className={`h-1.5 rounded-full transition-all duration-500 ${
+                    i === idx ? "w-8 bg-[#2dd4bf] shadow-[0_0_10px_#14b8a6]" : "w-1.5 bg-white/15"
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* escrow lifecycle strip on the last stage */}
+            <div
+              className={`mt-6 flex items-center gap-0 font-mono text-[10px] transition-all duration-500 ${
+                idx === stages.length - 1 ? "opacity-100 translate-y-0" : "pointer-events-none absolute opacity-0 translate-y-3"
+              }`}
+            >
+              {["authorize", "hold", "deliver", "capture"].map((s, i) => (
+                <div key={s} className="flex items-center">
+                  <div className={`rounded-lg border px-2.5 py-1.5 ${LINE} bg-[#060a09] ${i === 3 ? "text-[#2dd4bf] border-[#14b8a6]/40" : SOFT}`}>
+                    {s}
+                  </div>
+                  {i < 3 && <div className="h-px w-4 bg-white/15" />}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* right: stacked imagery */}
+          <div className="relative hidden aspect-[4/3] sm:block">
+            {stages.map((s, i) => (
+              // eslint-disable-next-line @next/next/no-img-element -- generated brand assets
+              <img
+                key={s.n}
+                src={s.img}
+                alt={s.alt ? t(s.alt) : t(s.tk)}
+                loading={i === 0 ? "eager" : "lazy"}
+                className={`absolute inset-0 h-full w-full rounded-2xl border ${LINE} object-cover shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] transition-all duration-700 ease-out ${
+                  i === idx
+                    ? "opacity-100 scale-100 translate-y-0"
+                    : i < idx
+                      ? "pointer-events-none opacity-0 scale-[0.97] -translate-y-4"
+                      : "pointer-events-none opacity-0 scale-[1.04] translate-y-6"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
