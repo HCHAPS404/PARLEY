@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  BadgeDollarSign, Boxes, Handshake, Loader2, Plus, Store, Trash2, TrendingUp,
+  BadgeDollarSign, Boxes, Handshake, Plus, Store, Trash2, TrendingUp,
 } from "lucide-react";
 import { usePrefs } from "./preferences";
 import Link from "next/link";
@@ -28,6 +28,7 @@ export function SellerDashboard() {
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
   const [csvText, setCsvText] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
   const [showCsv, setShowCsv] = useState(false);
   const [shipTrack, setShipTrack] = useState<Record<string, string>>({});
   const [shipCarrier, setShipCarrier] = useState<Record<string, string>>({});
@@ -45,19 +46,41 @@ export function SellerDashboard() {
 
   const post = async (body: Record<string, unknown>) => {
     setBusy(true);
-    await fetch("/api/seller", {
+    const r = await fetch("/api/seller", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    const d = (await r.json().catch(() => ({}))) as {
+      error?: string;
+      imported?: number;
+    };
     setBusy(false);
+    if (!r.ok) {
+      setNotice(d.error ?? t("common.error"));
+      return null;
+    }
     load();
+    return d;
   };
 
   if (!data)
     return (
-      <div className="grid h-40 place-items-center text-ink-soft">
-        <Loader2 className="h-5 w-5 animate-spin" />
+      <div className="mx-auto max-w-3xl space-y-6 p-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-20 animate-pulse rounded-xl border border-line bg-card"
+            />
+          ))}
+        </div>
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className="h-44 animate-pulse rounded-xl border border-line bg-card"
+          />
+        ))}
       </div>
     );
 
@@ -193,13 +216,25 @@ export function SellerDashboard() {
             <div className="mt-2 flex items-center justify-between">
               <span className="text-[11px] text-ink-soft">{t("sell.csvHint")}</span>
               <button
-                onClick={() => { post({ action: "importCsv", csv: csvText }); setCsvText(""); setShowCsv(false); }}
+                onClick={async () => {
+                  const d = await post({ action: "importCsv", csv: csvText });
+                  if (d) {
+                    setCsvText("");
+                    setShowCsv(false);
+                    setNotice(t("sell.csvDone", { n: String(d.imported ?? 0) }));
+                  }
+                }}
                 disabled={busy || !csvText.trim()}
                 className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white hover:bg-accent-strong disabled:opacity-50"
               >
                 {t("sell.csvImport")}
               </button>
             </div>
+            {notice && (
+              <div className="mt-2 rounded-md border border-line bg-accent-mist px-3 py-2 text-[12px] text-accent-strong">
+                {notice}
+              </div>
+            )}
           </div>
         )}
         {products.length === 0 ? (
@@ -215,7 +250,7 @@ export function SellerDashboard() {
                   <button
                     onClick={() => post({ action: "removeProduct", productId: p.id })}
                     className="text-ink-soft transition-colors hover:text-danger"
-                    title="Remove"
+                    title={t("sell.remove")}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

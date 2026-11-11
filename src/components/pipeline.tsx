@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, PackageCheck, PackageX, Truck } from "lucide-react";
+import { PackageCheck, PackageX, Truck } from "lucide-react";
 import { usePrefs } from "./preferences";
 
 interface Order {
@@ -47,8 +47,18 @@ export function Pipeline({ role }: { role: string }) {
 
   if (orders === null)
     return (
-      <div className="grid h-40 place-items-center text-ink-soft">
-        <Loader2 className="h-5 w-5 animate-spin" />
+      <div className="grid h-full grid-cols-4 divide-x divide-line overflow-x-auto">
+        {[0, 1, 2, 3].map((c) => (
+          <section key={c} className="flex min-w-[240px] flex-col p-3">
+            <div className="mb-3 h-3 w-1/3 animate-pulse rounded bg-line/60" />
+            {[0, 1].map((i) => (
+              <div
+                key={i}
+                className="mb-2 h-24 animate-pulse rounded-lg border border-line bg-card"
+              />
+            ))}
+          </section>
+        ))}
       </div>
     );
 

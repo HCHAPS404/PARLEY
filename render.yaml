@@ -28,8 +28,6 @@ services:
         sync: false
       - key: NEXT_PUBLIC_AG_GRID_LICENSE
         sync: false
-      - key: NEXT_PUBLIC_BRYNTUM_LICENSE
-        sync: false
       - key: NEXT_PUBLIC_APP_URL
         sync: false
       # Non-secret config

@@ -14,14 +14,14 @@ interface Alert {
 }
 
 const KIND_META: Record<string, { icon: typeof Bell; label: string; tone: string }> = {
-  delivered: { icon: PackageCheck, label: "Delivered", tone: "text-ok" },
-  reorder_created: { icon: RefreshCcw, label: "Reorder ready", tone: "text-accent" },
-  reorder_ready: { icon: RefreshCcw, label: "Reorder proposal", tone: "text-warn" },
-  delivery_overdue: { icon: TriangleAlert, label: "Escrow watch", tone: "text-danger" },
-  sale_closed: { icon: CheckCircle2, label: "Sale closed", tone: "text-ok" },
-  buyer_walked: { icon: TriangleAlert, label: "Lead lost", tone: "text-warn" },
-  price_drop: { icon: TrendingDown, label: "Price drop", tone: "text-accent" },
-  deal_found: { icon: Tag, label: "Deal found", tone: "text-ok" },
+  delivered: { icon: PackageCheck, label: "inbox.kind.delivered", tone: "text-ok" },
+  reorder_created: { icon: RefreshCcw, label: "inbox.kind.reorderCreated", tone: "text-accent" },
+  reorder_ready: { icon: RefreshCcw, label: "inbox.kind.reorderReady", tone: "text-warn" },
+  delivery_overdue: { icon: TriangleAlert, label: "inbox.kind.deliveryOverdue", tone: "text-danger" },
+  sale_closed: { icon: CheckCircle2, label: "inbox.kind.saleClosed", tone: "text-ok" },
+  buyer_walked: { icon: TriangleAlert, label: "inbox.kind.buyerWalked", tone: "text-warn" },
+  price_drop: { icon: TrendingDown, label: "inbox.kind.priceDrop", tone: "text-accent" },
+  deal_found: { icon: Tag, label: "inbox.kind.dealFound", tone: "text-ok" },
 };
 
 export function InboxPanel({ role }: { role: string }) {
@@ -53,7 +53,7 @@ export function InboxPanel({ role }: { role: string }) {
         body: JSON.stringify({ alertId, action }),
       });
       const d = await r.json();
-      if (!r.ok) setError(d.error ?? "Action failed");
+      if (!r.ok) setError(d.error ?? t("inbox.actionFailed"));
       else if (d.approveUrl) window.open(d.approveUrl, "_blank", "noopener");
       await load();
     } finally {
@@ -66,7 +66,7 @@ export function InboxPanel({ role }: { role: string }) {
     setError(null);
     try {
       const r = await fetch("/api/jobs/run", { method: "POST" });
-      if (!r.ok) setError(`watchdog ${r.status}`);
+      if (!r.ok) setError(t("inbox.watchdogFailed"));
       await load();
     } finally {
       setChecking(false);
@@ -75,8 +75,19 @@ export function InboxPanel({ role }: { role: string }) {
 
   if (alerts === null)
     return (
-      <div className="grid h-40 place-items-center text-ink-soft">
-        <Loader2 className="h-5 w-5 animate-spin" />
+      <div className="mx-auto max-w-2xl space-y-3 p-6">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="flex items-start gap-3 rounded-xl border border-line bg-card p-4"
+          >
+            <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-line/60" />
+            <div className="flex-1 space-y-2 pt-1">
+              <div className="h-3 w-1/3 animate-pulse rounded bg-line/60" />
+              <div className="h-2.5 w-2/3 animate-pulse rounded bg-line/40" />
+            </div>
+          </div>
+        ))}
       </div>
     );
 
@@ -125,7 +136,7 @@ export function InboxPanel({ role }: { role: string }) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
-                    {meta.label}
+                    {t(meta.label as never)}
                   </span>
                   <span className="text-[10px] text-ink-soft">
                     {new Date(a.createdAt).toLocaleString()}

@@ -20,9 +20,25 @@ const grotesk = Space_Grotesk({
 export const instant = false;
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  ),
   title: "Parley — procurement that negotiates",
   description:
     "An AI procurement agent that finds real products, negotiates with merchant agents, and pays via agentic escrow on PayPal — money only moves when goods arrive.",
+  openGraph: {
+    title: "Parley — procurement that negotiates",
+    description:
+      "Two agents meet over MCP: a buyer agent that shops, negotiates, and holds money in PayPal escrow, and merchant agents that sell while you sleep.",
+    siteName: "Parley",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Parley — procurement that negotiates",
+    description:
+      "Buyer + merchant agents, PayPal escrow that holds until delivery, deterministic spend policy. Sandbox demo.",
+  },
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

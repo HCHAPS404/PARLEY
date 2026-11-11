@@ -340,7 +340,7 @@ First run bootstraps the local PGlite database automatically — no migrations n
 | `CRON_SECRET` | prod only | Guards `/api/jobs/*` |
 | `NEXT_PUBLIC_APP_URL` | prod only | e.g. `https://parley-wt1k.onrender.com` — PayPal return URLs |
 | `NEXT_PUBLIC_AG_GRID_LICENSE` | optional | AG Grid Enterprise / AG Studio license |
-| `NEXT_PUBLIC_BRYNTUM_LICENSE` | optional | Bryntum Gantt license |
+| `NEXT_PUBLIC_BRYNTUM_LICENSE` | — | removed — pipeline is now a kanban |
 
 </details>
 
