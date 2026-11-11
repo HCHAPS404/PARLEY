@@ -65,14 +65,18 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm">
         <Link
           href="/"
-          className="group mb-8 block text-center"
+          className="group mb-10 flex flex-col items-center gap-4 text-center"
           title={t("login.backToSite")}
         >
-          <Logo className="mx-auto h-16 w-16 text-accent transition-transform duration-200 group-hover:scale-105" />
-          <h1 className="font-display mt-4 text-xl font-semibold tracking-tight transition-colors group-hover:text-accent-strong">
-            Parley
-          </h1>
-          <p className="mt-1 text-[13px] text-ink-soft">{t("login.subtitle")}</p>
+          <Logo className="h-24 w-24 transition-transform duration-200 group-hover:scale-105" />
+          <div className="space-y-1.5">
+            <h1 className="font-display text-2xl font-semibold tracking-tight transition-colors group-hover:text-accent-strong">
+              Parley
+            </h1>
+            <p className="mx-auto max-w-72 text-[13px] leading-snug text-ink-soft">
+              {t("login.subtitle")}
+            </p>
+          </div>
         </Link>
 
         <form
