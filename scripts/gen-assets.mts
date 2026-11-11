@@ -7,27 +7,27 @@ import { writeFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const STYLE =
-  "flat vector editorial illustration, minimal geometric shapes, warm off-white paper background #fafaf8, single teal accent color #0f766e with soft tints, dark ink #17150f linework, clean modern SaaS product illustration style, generous negative space, no text, no words, no letters, no watermark";
+  "professional editorial photograph for a high-end SaaS landing page, real people, natural window light, shallow depth of field, warm neutral tones with subtle teal accents, clean minimal composition, shot on a full-frame camera, soft film grain, no text, no words, no letters, no watermark, photorealistic";
 
 const ASSETS: Record<string, string> = {
   "hero-user":
-    `a young woman freelancer sitting cross-legged on a bean bag with a laptop on her lap, floating chat bubbles and a product card UI panel around her, shopping bag and box icons, relaxed confident pose, ${STYLE}`,
+    `a young Latina freelancer sitting comfortably on a sofa in a bright modern apartment working on a laptop, a stack of delivery parcels and a coffee cup beside her, relaxed confident expression, warm afternoon light through a large window, ${STYLE}`,
   "agents-meet":
-    `two abstract robot speech bubbles facing each other shaking hands across a product box between them, one bubble larger solid teal, other smaller outlined, sparkles around handshake, ${STYLE}`,
+    `two professionals shaking hands across a clean minimal desk, two laptops facing each other each showing a chat conversation, soft office daylight, hands and laptops in focus, ${STYLE}`,
   "escrow-vault":
-    `an open bank vault door revealing coins and a shield with checkmark inside, a package box next to it, ${STYLE}`,
+    `a heavy round steel bank vault door slightly ajar revealing neatly stacked parcels and a small glowing shield emblem inside, dramatic rim lighting in a dim room, concept of money held safely until delivery, ${STYLE}`,
   "market-radar":
-    `a circular radar screen with concentric rings and a sweeping beam, small product icons plotted on it, a rising line chart behind, ${STYLE}`,
+    `a focused professional at dusk in a modern office analyzing a large monitor glowing with price charts and a circular radar visualization, screen light on their face, city lights blurred behind, ${STYLE}`,
   "seller-sleep":
-    `a small merchant storefront awning at night with moon and stars, a friendly robot bubble inside the shop serving customers through the window, cozy and calm, ${STYLE}`,
+    `a cozy small boutique after closing at night, warm desk lamp glowing on the counter next to an open laptop showing a sales dashboard, the shop owner sleeping peacefully in a chair behind the counter wrapped in a blanket, moonlight through the storefront window, ${STYLE}`,
   "empty-inbox":
-    `an open empty inbox tray with a single green checkmark floating above it, soft and airy, ${STYLE}`,
+    `a tidy minimal desk in soft morning light with a closed laptop, a small potted plant and an empty coffee mug, everything finished and organized, calm and airy, ${STYLE}`,
   "empty-catalog":
-    `an empty open cardboard box with a price tag floating above it, question mark free, soft and airy, ${STYLE}`,
+    `bright empty white shelves in a small modern boutique waiting to be stocked, a few folded cardboard boxes on the floor, clean retail interior in soft daylight, ${STYLE}`,
   "dashboard-deco":
-    `abstract composition of floating UI cards, bar charts, coins and a magnifying glass arranged in an arc, ${STYLE}`,
+    `overhead flat-lay of a clean workspace: laptop showing an analytics dashboard, notebook, pen, coffee and a small parcel on a light wooden desk, soft daylight, ${STYLE}`,
   "negotiation-loop":
-    `two hands exchanging a price tag between speech bubbles, circular arrows around them suggesting back-and-forth rounds, ${STYLE}`,
+    `close-up of two hands exchanging a small parcel across a table, one hand offering cash, soft studio light, blurred laptops in the background showing price charts, ${STYLE}`,
 };
 
 const only = process.argv.slice(2);
