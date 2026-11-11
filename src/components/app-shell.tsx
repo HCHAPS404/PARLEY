@@ -176,7 +176,13 @@ export function AppShell({
                 {user.username}
               </div>
               <div className="text-[10px] text-ink-soft">
-                {t(user.role === "admin" ? "common.admin" : "common.demo")}
+                {t(
+                  user.role === "admin"
+                    ? "common.admin"
+                    : user.role === "demo"
+                      ? "common.demo"
+                      : "common.user",
+                )}
               </div>
             </div>
             <Settings className="h-3.5 w-3.5 shrink-0 text-ink-soft" />

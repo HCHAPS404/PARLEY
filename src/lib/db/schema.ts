@@ -9,13 +9,13 @@ import {
   numeric,
 } from "drizzle-orm/pg-core";
 
-/** Registered accounts. Only role='admin' may move funds or spend LLM tokens. */
+/** Registered accounts. admin = owner toolkit; user = full buyer agent; demo = read-mostly. */
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  role: text("role").notNull().default("demo"), // admin|demo — permission tier
+  role: text("role").notNull().default("user"), // admin|user|demo — permission tier
   persona: text("persona").notNull().default("buyer"), // buyer|seller — product side
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),

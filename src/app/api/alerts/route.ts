@@ -48,8 +48,8 @@ export async function POST(req: Request) {
   const payload = (alert.payload ?? {}) as Record<string, unknown>;
 
   if (action === "release") {
-    if (user.role !== "admin")
-      return NextResponse.json({ error: "Only admin releases escrow" }, { status: 403 });
+    if (user.role === "demo")
+      return NextResponse.json({ error: "Demo accounts cannot release escrow" }, { status: 403 });
     const paypalOrderId = String(payload.paypalOrderId ?? "");
     const [order] = await db
       .select()
@@ -86,8 +86,8 @@ export async function POST(req: Request) {
   }
 
   if (action === "issueInvoice") {
-    if (user.role !== "admin")
-      return NextResponse.json({ error: "Only admin issues invoices" }, { status: 403 });
+    if (user.role === "demo")
+      return NextResponse.json({ error: "Demo accounts cannot issue invoices" }, { status: 403 });
     const [sale] = await db
       .select()
       .from(merchantSales)

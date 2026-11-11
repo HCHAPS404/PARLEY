@@ -260,9 +260,9 @@ export function ChatArea({
           </span>
           <span
             className={`rounded-full px-2.5 py-1 font-medium md:hidden ${
-              user.role === "admin"
-                ? "bg-accent-mist text-accent-strong"
-                : "bg-paper text-ink-soft"
+              user.role === "demo"
+                ? "bg-paper text-ink-soft"
+                : "bg-accent-mist text-accent-strong"
             }`}
             title={`Signed in as ${user.username}`}
           >

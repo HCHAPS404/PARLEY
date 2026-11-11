@@ -24,7 +24,7 @@ const body = z.object({
   persona: z.enum(["buyer", "seller"]).default("buyer"),
 });
 
-/** Public registration — always creates a *demo* account. Admins are env-seeded. */
+/** Public registration — creates a *user* (member) account: full buyer agent, no merchant-account surface. Admins are env-seeded. */
 export async function POST(req: Request) {
   const parsed = body.safeParse(await req.json().catch(() => null));
   if (!parsed.success)
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
 
   const res = NextResponse.json({
     ok: true,
-    user: { username, email: email.toLowerCase(), role: "demo" },
+    user: { username, email: email.toLowerCase(), role: "user" },
   });
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,

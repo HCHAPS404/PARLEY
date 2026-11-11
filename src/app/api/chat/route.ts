@@ -10,6 +10,7 @@ import {
   saveMessage,
   getOwnedConversation,
   DEMO_DAILY_LIMIT,
+  USER_DAILY_LIMIT,
 } from "@/lib/auth";
 import { getActiveSpace } from "@/lib/spaces";
 
@@ -20,14 +21,18 @@ export async function POST(req: Request) {
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  // Demo quota — only the admin may spend unbounded LLM tokens.
-  if (user.role !== "admin") {
+  // Per-role token quota — admin unbounded, members generous, demo tight.
+  const dailyLimit =
+    user.role === "admin"
+      ? null
+      : user.role === "demo"
+        ? DEMO_DAILY_LIMIT
+        : USER_DAILY_LIMIT;
+  if (dailyLimit !== null) {
     const today = await messagesToday(user.id);
-    if (today >= DEMO_DAILY_LIMIT) {
+    if (today >= dailyLimit) {
       return NextResponse.json(
-        {
-          error: `Demo daily limit reached (${DEMO_DAILY_LIMIT} messages/day). Ask the workspace owner for admin access.`,
-        },
+        { error: `Daily message limit reached (${dailyLimit}/day).` },
         { status: 429 },
       );
     }

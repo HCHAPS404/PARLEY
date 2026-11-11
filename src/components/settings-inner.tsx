@@ -145,12 +145,18 @@ export function SettingsInner({
             </div>
             <span
               className={`ml-auto rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                user.role === "admin"
-                  ? "bg-accent-mist text-accent-strong"
-                  : "bg-paper text-ink-soft"
+                user.role === "demo"
+                  ? "bg-paper text-ink-soft"
+                  : "bg-accent-mist text-accent-strong"
               }`}
             >
-              {t(user.role === "admin" ? "common.admin" : "common.demo")}
+              {t(
+                user.role === "admin"
+                  ? "common.admin"
+                  : user.role === "demo"
+                    ? "common.demo"
+                    : "common.user",
+              )}
             </span>
           </div>
         </Section>

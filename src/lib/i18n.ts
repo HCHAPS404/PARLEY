@@ -336,6 +336,7 @@ const en = {
   "common.cancel": "Cancel",
   "common.back": "Back",
   "common.admin": "admin",
+  "common.user": "member",
   "common.demo": "demo",
 } as const;
 
@@ -674,6 +675,7 @@ const es: Record<I18nKey, string> = {
   "common.cancel": "Cancelar",
   "common.back": "Volver",
   "common.admin": "admin",
+  "common.user": "miembro",
   "common.demo": "demo",
 };
 

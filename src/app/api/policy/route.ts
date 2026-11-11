@@ -40,7 +40,7 @@ export async function GET() {
   const policy = await policyFor(space.id);
   return NextResponse.json({
     policy: policy ?? null,
-    canEdit: user.role === "admin",
+    canEdit: user.role !== "demo",
     spaceId: space.id,
     spaceName: space.name,
   });
@@ -49,8 +49,8 @@ export async function GET() {
 export async function PATCH(req: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin")
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  if (user.role === "demo")
+    return NextResponse.json({ error: "Demo accounts cannot edit policy" }, { status: 403 });
 
   const body = patchSchema.safeParse(await req.json().catch(() => ({})));
   if (!body.success)

@@ -12,8 +12,9 @@ import { users, sessions, messages, conversations } from "./db/schema";
 
 /**
  * Session auth — scrypt password hashing, opaque bearer tokens stored
- * SHA-256'd in the DB, httpOnly cookies. Two roles:
- *   admin — full agent: tools that move money and burn LLM tokens enabled
+ * SHA-256'd in the DB, httpOnly cookies. Three roles:
+ *   admin — full agent + merchant-account PayPal toolkit (the owner's books)
+ *   user  — full buyer agent: spend tools gated by policy, generous daily cap
  *   demo  — read-mostly agent: search/negotiate allowed, spend tools blocked,
  *           hard daily message cap so API tokens can't be drained
  */
@@ -21,12 +22,13 @@ import { users, sessions, messages, conversations } from "./db/schema";
 export const SESSION_COOKIE = "parley_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 export const DEMO_DAILY_LIMIT = 15;
+export const USER_DAILY_LIMIT = 100;
 
 export type SessionUser = {
   id: string;
   username: string;
   email: string;
-  role: "admin" | "demo";
+  role: "admin" | "user" | "demo";
   persona: "buyer" | "seller";
 };
 
@@ -100,7 +102,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     id: row.user.id,
     username: row.user.username,
     email: row.user.email,
-    role: row.user.role === "admin" ? "admin" : "demo",
+    role:
+      row.user.role === "admin"
+        ? "admin"
+        : row.user.role === "demo"
+          ? "demo"
+          : "user",
     persona: row.user.persona === "seller" ? "seller" : "buyer",
   };
 }
@@ -119,7 +126,7 @@ export async function createUser(input: {
   username: string;
   email: string;
   password: string;
-  role?: "admin" | "demo";
+  role?: "admin" | "user" | "demo";
   persona?: "buyer" | "seller";
 }) {
   await ensureDb();
@@ -131,7 +138,7 @@ export async function createUser(input: {
       username: input.username,
       email: input.email.toLowerCase(),
       passwordHash: hashPassword(input.password),
-      role: input.role ?? "demo",
+      role: input.role ?? "user",
       persona: input.persona ?? "buyer",
     });
   return id;
@@ -159,7 +166,7 @@ export function loginSucceeded(key: string) {
 }
 
 // ─── Demo quota ─────────────────────────────────────────────────────
-/** Count today's user-role messages — demo accounts get DEMO_DAILY_LIMIT. */
+/** Count today's user-role messages — demo gets DEMO_DAILY_LIMIT, user USER_DAILY_LIMIT. */
 export async function messagesToday(userId: string): Promise<number> {
   await ensureDb();
   const res = (await getDb().execute(

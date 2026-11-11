@@ -44,7 +44,7 @@ const toCents = (dollars: number) => Math.round(dollars * 100);
 
 export type AgentCtx = {
   userId: string;
-  role: "admin" | "demo";
+  role: "admin" | "user" | "demo";
   spaceId: string;
   /** Image the user attached this turn — visual search consumes it, the model never re-uploads bytes. */
   lastImage?: { base64: string; mediaType: string };
@@ -63,7 +63,11 @@ const DEMO_SPEND_ERROR =
   "Demo accounts can search and negotiate, but cannot move funds — escrow tools are disabled.";
 
 // Channel3 searches cost a real API key — demo users get a tight window.
-const SEARCH_LIMIT: Record<AgentCtx["role"], number> = { admin: 300, demo: 20 };
+const SEARCH_LIMIT: Record<AgentCtx["role"], number> = {
+  admin: 300,
+  user: 100,
+  demo: 20,
+};
 
 /**
  * Learned reputation. Score is Bayesian-smoothed: a vendor with one on-time
@@ -392,7 +396,7 @@ export function agentTools(ctx: AgentCtx) {
           .describe("From an accepted merchant_quote"),
       }),
       execute: async ({ productId, quantity, negotiationId }) => {
-        if (ctx.role !== "admin") {
+        if (ctx.role === "demo") {
           await audit({
             actor: "system",
             action: "demo_spend_blocked",
@@ -529,7 +533,7 @@ export function agentTools(ctx: AgentCtx) {
         paypalOrderId: z.string().describe("The PayPal order id"),
       }),
       execute: async ({ paypalOrderId }) => {
-        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        if (ctx.role === "demo") return { error: DEMO_SPEND_ERROR };
         await ensureDb();
         const db = getDb();
         const [row] = await db
@@ -587,7 +591,7 @@ export function agentTools(ctx: AgentCtx) {
         reason: z.string().optional().describe("Why the hold is being voided"),
       }),
       execute: async ({ paypalOrderId, reason }) => {
-        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        if (ctx.role === "demo") return { error: DEMO_SPEND_ERROR };
         await ensureDb();
         const db = getDb();
         const [row] = await db
@@ -655,7 +659,7 @@ export function agentTools(ctx: AgentCtx) {
         finalCapture: z.boolean().default(false).describe("True releases this and ends the hold"),
       }),
       execute: async ({ paypalOrderId, percent, amountUsd, finalCapture }) => {
-        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        if (ctx.role === "demo") return { error: DEMO_SPEND_ERROR };
         await ensureDb();
         const db = getDb();
         const [row] = await db
@@ -839,7 +843,7 @@ export function agentTools(ctx: AgentCtx) {
         carrier: z.string().describe("Carrier code — UPS, USPS, FEDEX, DHL…"),
       }),
       execute: async ({ paypalOrderId, trackingNumber, carrier }) => {
-        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        if (ctx.role === "demo") return { error: DEMO_SPEND_ERROR };
         await ensureDb();
         const db = getDb();
         const [row] = await db
@@ -895,7 +899,7 @@ export function agentTools(ctx: AgentCtx) {
         recipientEmail: z.string().email().describe("Billing email the invoice is addressed to"),
       }),
       execute: async ({ paypalOrderId, recipientEmail }) => {
-        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        if (ctx.role === "demo") return { error: DEMO_SPEND_ERROR };
         await ensureDb();
         const db = getDb();
         const [row] = await db
@@ -963,7 +967,7 @@ export function agentTools(ctx: AgentCtx) {
         vendorDomain: z.string().optional().describe("Pin to a specific vendor"),
       }),
       execute: async ({ query, maxUnitPriceUsd, intervalDays, quantity, vendorDomain }) => {
-        if (ctx.role !== "admin") return { error: DEMO_SPEND_ERROR };
+        if (ctx.role === "demo") return { error: DEMO_SPEND_ERROR };
         await ensureDb();
         const rule = {
           id: `rule_${crypto.randomUUID().slice(0, 8)}`,
@@ -1123,7 +1127,7 @@ export function agentTools(ctx: AgentCtx) {
               eq(priceWatches.active, true),
             ),
           );
-        const cap = ctx.role === "admin" ? 25 : 3;
+        const cap = ctx.role === "admin" ? 25 : ctx.role === "user" ? 10 : 3;
         if (active.length >= cap)
           return { error: `Watch limit reached (${cap}) — stop a watch first` };
 

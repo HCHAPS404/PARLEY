@@ -156,7 +156,7 @@ export function InboxPanel({ role }: { role: string }) {
                   <ExternalLink className="h-3.5 w-3.5" /> {t("inbox.viewOffer")}
                 </a>
               )}
-              {a.kind === "delivered" && role === "admin" && (
+              {a.kind === "delivered" && role !== "demo" && (
                 <button
                   onClick={() => act(a.id, "release")}
                   disabled={busy === a.id}
@@ -165,7 +165,7 @@ export function InboxPanel({ role }: { role: string }) {
                   {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("inbox.release")}
                 </button>
               )}
-              {a.kind === "sale_closed" && role === "admin" && typeof p.saleId === "string" && (
+              {a.kind === "sale_closed" && role !== "demo" && typeof p.saleId === "string" && (
                 <button
                   onClick={() => act(a.id, "issueInvoice")}
                   disabled={busy === a.id}

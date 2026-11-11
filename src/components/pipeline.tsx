@@ -104,7 +104,7 @@ export function Pipeline({ role }: { role: string }) {
                       <Truck className="h-3 w-3" /> {o.carrier} · {o.trackingNumber}
                     </div>
                   )}
-                  {o.status === "delivered" && role === "admin" && (
+                  {o.status === "delivered" && role !== "demo" && (
                     <Link
                       href="/inbox"
                       className="mt-2 flex items-center justify-center gap-1.5 rounded-md bg-accent px-2 py-1.5 text-[11px] font-medium text-white hover:bg-accent-strong"

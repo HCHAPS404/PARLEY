@@ -128,6 +128,28 @@ body {
   background: var(--color-accent-soft);
 }
 
+/* Keyboard navigation — visible, consistent focus ring in both themes. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* Don't show the ring for pointer clicks. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Respect reduced-motion — kills transitions/animations globally. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;

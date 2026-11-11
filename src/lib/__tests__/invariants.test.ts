@@ -66,6 +66,17 @@ describe("agent tool surface", async () => {
     ]);
   });
 
+  it("user role gets the same buyer surface — spend tools on, merchant toolkit off", () => {
+    const tools = agentTools({ userId: "u1", role: "user", spaceId: "sp_test" });
+    const names = Object.keys(tools);
+    expect(names).toContain("create_escrow_order");
+    expect(names).toContain("confirm_delivery_release");
+    expect(names).toContain("run_rfq");
+    // Merchant-account tools stay admin-only — they act on the owner's books.
+    expect(names).not.toContain("create_invoice");
+    expect(names).not.toContain("list_transactions");
+  });
+
   it("money-moving tools accept no price or amount input — prices resolve server-side only", () => {
     const tools = agentTools({ userId: "u1", role: "demo", spaceId: "sp_test" });
     const moneyTools = [
