@@ -386,6 +386,15 @@ const en = {
     "Deploy your merchant agent or put your buyer agent to work — the other side is already awake.",
   "land.cta.note": "Sandbox demo — no real money moves.",
   "land.cta.imgAlt": "A small shop at night with an agent still working inside",
+  "land.row.buyer.t": "For the one doing it all.",
+  "land.row.buyer.d":
+    "Search, compare and let your agent negotiate — you approve once, money holds until the package lands.",
+  "land.row.protocol.t": "Agents that close deals.",
+  "land.row.protocol.d":
+    "Buyer and merchant agents negotiate over a real A2A boundary — every offer enforced in code, not vibes.",
+  "land.row.seller.t": "Sell while you sleep.",
+  "land.row.seller.d":
+    "Your merchant agent answers offers 24/7, holds its margin floor, and turns quiet hours into orders.",
   "land.hero.imgAlt": "A person sourcing products on a laptop surrounded by chat bubbles",
   "land.footer.tagline": "Procurement that negotiates — money that waits.",
 
@@ -783,6 +792,15 @@ const es: Record<I18nKey, string> = {
     "Despliega tu agente mercantil o pon a trabajar tu agente comprador — el otro lado ya está despierto.",
   "land.cta.note": "Demo en sandbox — no se mueve dinero real.",
   "land.cta.imgAlt": "Una tienda de noche con un agente trabajando adentro",
+  "land.row.buyer.t": "Para el que lo hace todo.",
+  "land.row.buyer.d":
+    "Busca, compara y deja que tu agente negocie — apruebas una vez y el dinero espera hasta que llegue el paquete.",
+  "land.row.protocol.t": "Agentes que cierran tratos.",
+  "land.row.protocol.d":
+    "Agentes comprador y mercantil negocian por una frontera A2A real — cada oferta exigida en código, no en vibras.",
+  "land.row.seller.t": "Vende mientras duermes.",
+  "land.row.seller.d":
+    "Tu agente mercantil responde ofertas 24/7, mantiene su piso de margen y convierte la madrugada en órdenes.",
   "land.hero.imgAlt": "Una persona buscando productos en su laptop rodeada de burbujas de chat",
   "land.footer.tagline": "Procurement que negocia — dinero que espera.",
 

@@ -7,27 +7,27 @@ import { writeFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const STYLE =
-  "professional editorial photograph for a high-end SaaS landing page, real people, natural window light, shallow depth of field, warm neutral tones with subtle teal accents, clean minimal composition, shot on a full-frame camera, soft film grain, no text, no words, no letters, no watermark, photorealistic";
+  "cinematic studio product photography on a pure black background, single subject emerging from darkness with a soft teal rim light tracing its edges, deep shadows, minimal composition, high-end tech keynote aesthetic, photorealistic, no text, no words, no letters, no watermark";
 
 const ASSETS: Record<string, string> = {
   "hero-user":
-    `a young Latina freelancer sitting comfortably on a sofa in a bright modern apartment working on a laptop, a stack of delivery parcels and a coffee cup beside her, relaxed confident expression, warm afternoon light through a large window, ${STYLE}`,
+    `over-the-shoulder view of a freelancer in a dark studio lit only by the glow of a laptop screen showing a dark procurement dashboard with chat bubbles and price cards, parcels stacked softly out of focus behind, ${STYLE}`,
   "agents-meet":
-    `two professionals shaking hands across a clean minimal desk, two laptops facing each other each showing a chat conversation, soft office daylight, hands and laptops in focus, ${STYLE}`,
+    `two premium laptops on a dark reflective table facing each other, each screen glowing with a live negotiation chat of offer bubbles, a small parcel centered between them catching the light, ${STYLE}`,
   "escrow-vault":
-    `a heavy round steel bank vault door slightly ajar revealing neatly stacked parcels and a small glowing shield emblem inside, dramatic rim lighting in a dim room, concept of money held safely until delivery, ${STYLE}`,
+    `a heavy round brushed-steel bank vault door slightly ajar on a black background, neatly stacked parcels and a small glowing shield emblem visible inside the opening, ${STYLE}`,
   "market-radar":
-    `a focused professional at dusk in a modern office analyzing a large monitor glowing with price charts and a circular radar visualization, screen light on their face, city lights blurred behind, ${STYLE}`,
+    `a large professional monitor on a black desk in a dark studio glowing with a market analytics dashboard: circular radar visualization, rising price curves and product thumbnails, screen light spilling onto the desk, ${STYLE}`,
   "seller-sleep":
-    `a cozy small boutique after closing at night, warm desk lamp glowing on the counter next to an open laptop showing a sales dashboard, the shop owner sleeping peacefully in a chair behind the counter wrapped in a blanket, moonlight through the storefront window, ${STYLE}`,
+    `a cozy small boutique after closing at night, warm desk lamp glowing on the counter next to an open laptop showing a sales dashboard, the shop owner sleeping peacefully in a chair behind the counter wrapped in a blanket, moonlight through the storefront window, cinematic night photography, photorealistic, no text, no watermark`,
   "empty-inbox":
-    `a tidy minimal desk in soft morning light with a closed laptop, a small potted plant and an empty coffee mug, everything finished and organized, calm and airy, ${STYLE}`,
+    `a tidy minimal desk in soft morning light with a closed laptop, a small potted plant and an empty coffee mug, everything finished and organized, calm and airy, editorial photo, photorealistic, no text, no watermark`,
   "empty-catalog":
-    `bright empty white shelves in a small modern boutique waiting to be stocked, a few folded cardboard boxes on the floor, clean retail interior in soft daylight, ${STYLE}`,
+    `bright empty white shelves in a small modern boutique waiting to be stocked, a few folded cardboard boxes on the floor, clean retail interior in soft daylight, editorial photo, photorealistic, no text, no watermark`,
   "dashboard-deco":
-    `overhead flat-lay of a clean workspace: laptop showing an analytics dashboard, notebook, pen, coffee and a small parcel on a light wooden desk, soft daylight, ${STYLE}`,
+    `overhead flat-lay on a dark matte desk: a laptop showing a glowing analytics dashboard, a small parcel, a notebook and keys arranged with precision, single soft overhead light, ${STYLE}`,
   "negotiation-loop":
-    `close-up of two hands exchanging a small parcel across a table, one hand offering cash, soft studio light, blurred laptops in the background showing price charts, ${STYLE}`,
+    `two smartphones lying on a dark reflective table facing each other, screens showing a live price negotiation chat with offer bubbles, a small sealed parcel between them, ${STYLE}`,
 };
 
 const only = process.argv.slice(2);

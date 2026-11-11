@@ -302,54 +302,58 @@ export function Landing({ authed }: { authed: boolean }) {
         </Reveal>
       </section>
 
-      {/* ── Escrow explainer ────────────────────────────── */}
+      {/* ── Escrow explainer — asymmetric editorial ─────── */}
       <section className={`border-y ${LINE} ${CARD}/40`}>
-        <Reveal className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-24 lg:grid-cols-2">
-          <div>
-            <span className="font-mono text-[10px] uppercase tracking-widest text-[#2dd4bf]">
-              PayPal escrow
-            </span>
-            <h2 className="font-display mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              {t("land.split.title")}
-            </h2>
-            <p className={`mt-4 text-[14px] leading-6 ${SOFT}`}>
-              {t("land.split.p1")}
-            </p>
-            <div className="mt-6 space-y-4">
-              <div className="flex gap-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#22c55e]/10">
-                  <BadgeCheck className="h-4 w-4 text-[#4ade80]" />
-                </div>
-                <div>
-                  <div className="text-[14px] font-medium">
-                    {t("land.split.capture.t")}
-                  </div>
-                  <div className={`text-[13px] ${SOFT}`}>
-                    {t("land.split.capture.d")}
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#eab308]/10">
-                  <ArrowUpRight className="h-4 w-4 text-[#facc15]" />
-                </div>
-                <div>
-                  <div className="text-[14px] font-medium">
-                    {t("land.split.void.t")}
-                  </div>
-                  <div className={`text-[13px] ${SOFT}`}>
-                    {t("land.split.void.d")}
-                  </div>
-                </div>
-              </div>
+        <Reveal className="mx-auto max-w-6xl px-5 py-24">
+          <div className="grid gap-10 lg:grid-cols-2">
+            <div>
+              <span className="font-mono text-[10px] uppercase tracking-widest text-[#2dd4bf]">
+                PayPal escrow
+              </span>
+              <h2 className="font-display mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
+                {t("land.split.title")}
+              </h2>
             </div>
-            <p className={`mt-6 flex items-center gap-2 rounded-lg border ${LINE} ${CARD} px-3.5 py-2.5 text-[12px] ${SOFT}`}>
-              <Radio className="h-3.5 w-3.5 text-[#2dd4bf]" />
-              {t("land.split.note")}
-            </p>
+            <div>
+              <p className={`text-[14px] leading-6 ${SOFT}`}>
+                {t("land.split.p1")}
+              </p>
+              <div className="mt-6 space-y-4">
+                <div className="flex gap-3">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#22c55e]/10">
+                    <BadgeCheck className="h-4 w-4 text-[#4ade80]" />
+                  </div>
+                  <div>
+                    <div className="text-[14px] font-medium">
+                      {t("land.split.capture.t")}
+                    </div>
+                    <div className={`text-[13px] ${SOFT}`}>
+                      {t("land.split.capture.d")}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#eab308]/10">
+                    <ArrowUpRight className="h-4 w-4 text-[#facc15]" />
+                  </div>
+                  <div>
+                    <div className="text-[14px] font-medium">
+                      {t("land.split.void.t")}
+                    </div>
+                    <div className={`text-[13px] ${SOFT}`}>
+                      {t("land.split.void.d")}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className={`mt-6 flex items-center gap-2 rounded-lg border ${LINE} ${CARD} px-3.5 py-2.5 text-[12px] ${SOFT}`}>
+                <Radio className="h-3.5 w-3.5 text-[#2dd4bf]" />
+                {t("land.split.note")}
+              </p>
+            </div>
           </div>
-          <div className={`rounded-2xl border ${LINE} ${CARD} p-6 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.7)]`}>
-            <div className="space-y-3 font-mono text-[12px]">
+          <div className={`mt-12 rounded-2xl border ${LINE} ${CARD} p-6 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.7)]`}>
+            <div className="space-y-3 font-mono text-[12px] sm:text-[13px]">
               {[
                 ["POST /v2/checkout/orders", "intent: AUTHORIZE", SOFT],
                 ["approve → /api/paypal/return", "human clicks once", SOFT],
@@ -359,7 +363,7 @@ export function Landing({ authed }: { authed: boolean }) {
               ].map(([a, b, c], i) => (
                 <div
                   key={i}
-                  className={`flex items-center justify-between rounded-lg border ${LINE} bg-[#060a09] px-3.5 py-2.5`}
+                  className={`flex items-center justify-between rounded-lg border ${LINE} bg-[#060a09] px-4 py-3`}
                 >
                   <span className={INK}>{a}</span>
                   <span className={c}>{b}</span>
@@ -371,6 +375,37 @@ export function Landing({ authed }: { authed: boolean }) {
               audited · reconcile-able · dispute-ready
             </div>
           </div>
+        </Reveal>
+      </section>
+
+      {/* ── Who it's for — media card row ────────────────── */}
+      <section className="mx-auto max-w-6xl px-5 py-24">
+        <Reveal className="grid gap-5 md:grid-cols-3">
+          {(
+            [
+              { img: "/gen/hero-user.webp", t: "land.row.buyer.t", d: "land.row.buyer.d" },
+              { img: "/gen/agents-meet.webp", t: "land.row.protocol.t", d: "land.row.protocol.d" },
+              { img: "/gen/seller-sleep.webp", t: "land.row.seller.t", d: "land.row.seller.d" },
+            ] satisfies { img: string; t: I18nKey; d: I18nKey }[]
+          ).map((c) => (
+            <div key={c.t} className="group">
+              <div className={`overflow-hidden rounded-2xl border ${LINE}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- generated brand asset */}
+                <img
+                  src={c.img}
+                  alt={t(c.t)}
+                  className="aspect-[4/3] w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                  loading="lazy"
+                />
+              </div>
+              <h3 className="mt-5 text-[16px] font-semibold leading-6">
+                {t(c.t)}
+              </h3>
+              <p className={`mt-1.5 text-[13px] leading-5 ${SOFT}`}>
+                {t(c.d)}
+              </p>
+            </div>
+          ))}
         </Reveal>
       </section>
 
@@ -408,37 +443,26 @@ export function Landing({ authed }: { authed: boolean }) {
       </section>
 
       {/* ── Final CTA ─────────────────────────────────── */}
-      <section className={`border-t ${LINE} ${CARD}/40`}>
-        <Reveal className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 lg:grid-cols-[1fr_380px]">
-          <div>
-            <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-              {t("land.cta.title")}
-            </h2>
-            <p className={`mt-3 max-w-xl text-[14px] leading-6 ${SOFT}`}>
-              {t("land.cta.sub")}
-            </p>
-            <div className="mt-7 flex items-center gap-4">
-              <Link
-                href="/login"
-                className="flex items-center gap-2 rounded-xl bg-[#14b8a6] px-6 py-3.5 text-[14px] font-semibold text-[#04211d] shadow-[0_0_40px_-8px_#14b8a6] transition-all hover:bg-[#2dd4bf] hover:shadow-[0_0_50px_-4px_#14b8a6]"
-              >
-                {t("land.hero.cta")}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <span className={`text-[11px] ${SOFT}`}>
-                {t("land.cta.note")}
-              </span>
-            </div>
-          </div>
-          <div className="relative">
-            <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-[#14b8a6]/10 blur-[60px]" />
-            {/* eslint-disable-next-line @next/next/no-img-element -- generated brand asset */}
-            <img
-              src="/gen/seller-sleep.webp"
-              alt={t("land.cta.imgAlt")}
-              className={`relative mx-auto w-full max-w-80 rounded-2xl border ${LINE} shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)]`}
-              loading="lazy"
-            />
+      <section className="relative overflow-hidden border-t border-white/[0.08]">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[26rem] w-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#14b8a6]/10 blur-[120px]" />
+        <Reveal className="relative mx-auto max-w-4xl px-5 py-28 text-center">
+          <h2 className="font-display text-4xl font-semibold tracking-tight sm:text-6xl">
+            {t("land.cta.title")}
+          </h2>
+          <p className={`mx-auto mt-5 max-w-xl text-[15px] leading-7 ${SOFT}`}>
+            {t("land.cta.sub")}
+          </p>
+          <div className="mt-9 flex items-center justify-center gap-4">
+            <Link
+              href="/login"
+              className="flex items-center gap-2 rounded-xl bg-[#14b8a6] px-7 py-4 text-[15px] font-semibold text-[#04211d] shadow-[0_0_50px_-8px_#14b8a6] transition-all hover:bg-[#2dd4bf] hover:shadow-[0_0_60px_-4px_#14b8a6]"
+            >
+              {t("land.hero.cta")}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <span className={`text-[11px] ${SOFT}`}>
+              {t("land.cta.note")}
+            </span>
           </div>
         </Reveal>
       </section>
