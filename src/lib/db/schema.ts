@@ -206,6 +206,7 @@ export const merchantSales = pgTable("merchant_sales", {
   sellerUserId: text("seller_user_id").notNull(),
   productTitle: text("product_title").notNull(),
   agreedCents: integer("agreed_cents").notNull(),
+  listCents: integer("list_cents"), // list price at close — avg discount metric
   buyerLabel: text("buyer_label"), // who the agent sold to, if known
   buyerOrderId: text("buyer_order_id"), // buyer's escrow order — links the two ledgers
   trackingNumber: text("tracking_number"),
@@ -224,6 +225,21 @@ export const sellerEvents = pgTable("seller_events", {
   offerCents: integer("offer_cents"),
   counterCents: integer("counter_cents"),
   message: text("message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+/** Seller-run promotions — an active campaign lowers the agent's working
+ *  "list" price for a product (or the whole catalog), while the margin floor
+ *  still protects the original list price. */
+export const sellerCampaigns = pgTable("seller_campaigns", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  pctOff: integer("pct_off").notNull(), // 1–70, % off the list price
+  productId: text("product_id"), // null → applies to the whole catalog
+  startsAt: timestamp("starts_at", { withTimezone: true }).defaultNow(),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

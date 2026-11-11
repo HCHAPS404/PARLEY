@@ -5,7 +5,9 @@ import { paypalTools } from "@/lib/paypal-toolkit";
 import { env } from "@/lib/env";
 import { ensureDb, getDb } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
-import { alerts, merchantProfiles, merchantSales, sellerEvents, spaces } from "@/lib/db/schema";
+import { alerts, merchantProfiles, merchantSales, sellerEvents, sellerProducts, spaces } from "@/lib/db/schema";
+import { activeCampaignFor, promoPriceCents } from "@/lib/campaigns";
+import { sql } from "drizzle-orm";
 
 export const maxDuration = 60;
 
@@ -98,15 +100,36 @@ export async function POST(req: Request) {
           .limit(1);
         profile = p ?? null;
       }
+      // The merchant resolves its own price — the caller's listPriceCents is a
+      // claim, the catalog row is the truth. An active campaign overrides it.
+      const productId = String(args?.productId ?? "");
+      let effectiveList = listPriceCents;
+      let promoCents: number | undefined;
+      let stockUnits: number | undefined;
+      if (profile) {
+        const [owned] = await getDb()
+          .select()
+          .from(sellerProducts)
+          .where(eq(sellerProducts.id, productId))
+          .limit(1);
+        if (owned && owned.userId === profile.userId) {
+          effectiveList = owned.priceCents;
+          stockUnits = owned.stock;
+          const campaign = await activeCampaignFor(profile.userId, productId);
+          if (campaign) promoCents = promoPriceCents(owned.priceCents, campaign.pctOff);
+        }
+      }
       const resp = await merchantAgentRound({
-        productId: String(args?.productId ?? ""),
+        productId,
         productTitle: String(args?.productTitle ?? "Product"),
-        listPriceCents,
+        listPriceCents: effectiveList,
         offerCents,
         roundsUsed,
         floorRatioPct: profile?.floorRatioPct,
         style: profile?.style,
         sellerName: profile?.displayName,
+        promoCents,
+        stockUnits,
       });
       // Every round the seller's agent handles lands in their live feed.
       if (profile) {
@@ -130,8 +153,13 @@ export async function POST(req: Request) {
           sellerUserId: profile.userId,
           productTitle: String(args?.productTitle ?? "Product"),
           agreedCents: resp.priceCents,
+          listCents: effectiveList,
           buyerLabel: args?.buyerLabel ? String(args.buyerLabel) : null,
         });
+        // A closed sale consumes real stock for catalog products.
+        await db.execute(sql`
+          update seller_products set stock = greatest(stock - 1, 0)
+          where id = ${productId} and user_id = ${profile.userId}`);
         // Route the sale alert into the seller's own space so their inbox sees it.
         const [sellerSpace] = await db
           .select({ id: spaces.id })

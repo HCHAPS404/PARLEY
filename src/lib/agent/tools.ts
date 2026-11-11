@@ -30,6 +30,7 @@ import {
   users,
 } from "../db/schema";
 import { merchantAgentRound } from "./merchant";
+import { activeCampaignFor, activeCampaignsMap, promoPriceCents } from "../campaigns";
 import { rateLimit } from "../rate-limit";
 import { env } from "../env";
 
@@ -265,11 +266,19 @@ export function agentTools(ctx: AgentCtx) {
             .limit(3);
           for (const m of mine) {
             if (m.sellerUserId === ctx.userId) continue; // don't sell to yourself
+            // An active seller campaign advertises its promo price to buyers —
+            // the merchant agent then floors negotiation at that same price.
+            const { byProduct, global } = await activeCampaignsMap(m.sellerUserId);
+            const camp = byProduct.get(m.id) ?? global;
+            const priceCents = camp
+              ? promoPriceCents(m.priceCents, camp.pctOff)
+              : m.priceCents;
             products.push({
               id: m.id, title: m.title, brand: "Parley seller",
-              bestPriceCents: m.priceCents, currency: m.currency,
+              bestPriceCents: priceCents, currency: m.currency,
               merchant: m.sellerName, offersCount: 1,
-              offers: [{ domain: m.sellerName, priceCents: m.priceCents, currency: m.currency, url: "" }],
+              offers: [{ domain: m.sellerName, priceCents, currency: m.currency, url: "" }],
+              ...(camp ? { promo: `${camp.name} −${camp.pctOff}%` } : {}),
             });
           }
         }
@@ -1284,12 +1293,36 @@ async function negotiate(
   },
 ) {
   const { merchantId, buyerLabel, buyerEmail, ...round } = args;
-  if (!env.mcpSecret) return merchantAgentRound(round);
+  if (!env.mcpSecret) return merchantAgentRound(await sellerTerms(round));
   try {
     return await callMerchantOverMcp({ ...round, merchantId, buyerLabel, buyerEmail });
   } catch {
-    return merchantAgentRound(round);
+    return merchantAgentRound(await sellerTerms(round));
   }
+}
+
+/** In-process twin of the MCP route's price resolution: the merchant owns its
+ * catalog price + active campaign, never the caller's claimed list price. */
+async function sellerTerms(
+  round: Parameters<typeof merchantAgentRound>[0],
+): Promise<Parameters<typeof merchantAgentRound>[0]> {
+  if (!round.productId.startsWith("sp_")) return round;
+  const db = getDb();
+  const [owned] = await db
+    .select()
+    .from(sellerProducts)
+    .where(eq(sellerProducts.id, round.productId))
+    .limit(1);
+  if (!owned) return round;
+  const campaign = await activeCampaignFor(owned.userId, round.productId);
+  return {
+    ...round,
+    listPriceCents: owned.priceCents,
+    stockUnits: owned.stock,
+    promoCents: campaign
+      ? promoPriceCents(owned.priceCents, campaign.pctOff)
+      : undefined,
+  };
 }
 
 /** JSON-RPC call to the merchant agent service — the literal A2A boundary. */

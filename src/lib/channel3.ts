@@ -27,6 +27,7 @@ export interface ProductCard {
   buyUrl?: string;
   offersCount: number;
   offers: OfferInfo[];
+  promo?: string; // active seller-campaign label, e.g. "Spring sale −15%"
 }
 
 interface RawOffer {

@@ -53,8 +53,15 @@ export function merchantRound(input: {
   offerCents: number;
   roundsUsed: number;
   maxRounds?: number;
+  promoCents?: number;
 }): MerchantResponse {
-  const floorCents = floorFor(input.listPriceCents);
+  // A campaign makes the promo the anchor AND the effective floor: the seller
+  // chose to sell at that price, but the agent still never goes below it.
+  const anchorCents = input.promoCents ?? input.listPriceCents;
+  const floorCents = Math.min(
+    floorFor(input.listPriceCents),
+    input.promoCents ?? Number.MAX_SAFE_INTEGER,
+  );
   const maxRounds = input.maxRounds ?? 4;
   const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
 
@@ -68,7 +75,7 @@ export function merchantRound(input: {
   if (input.roundsUsed >= maxRounds) {
     return {
       action: "walk",
-      priceCents: input.listPriceCents,
+      priceCents: anchorCents,
       message: `I appreciate the interest, but I can't go lower than ${usd(floorCents)} on this one.`,
     };
   }
@@ -79,9 +86,9 @@ export function merchantRound(input: {
       message: `That's tight for me. Best I can do is ${usd(floorCents)} — take it and it's yours.`,
     };
   }
-  // Low offer — counter inside the profitable band (floor → list), so the
+  // Low offer — counter inside the profitable band (floor → anchor), so the
   // floor is never offered away and later rounds still have room to concede.
-  const counter = Math.round((floorCents + input.listPriceCents) / 2);
+  const counter = Math.round((floorCents + anchorCents) / 2);
   return {
     action: "counter",
     priceCents: counter,
@@ -109,8 +116,17 @@ export async function merchantAgentRound(input: {
   floorRatioPct?: number; // the seller's own margin config — their agent, their floor
   style?: string;
   sellerName?: string;
+  promoCents?: number; // active campaign price — anchors the negotiation
+  stockUnits?: number; // real catalog stock for the merchant's own products
 }): Promise<MerchantResponse> {
-  const floorCents = floorFor(input.listPriceCents, input.floorRatioPct);
+  // Campaign semantics: promo becomes the advertised anchor and the effective
+  // floor — the seller explicitly lowered their price, so the agent can close
+  // at promo but never below it.
+  const anchorCents = input.promoCents ?? input.listPriceCents;
+  const floorCents = Math.min(
+    floorFor(input.listPriceCents, input.floorRatioPct),
+    input.promoCents ?? Number.MAX_SAFE_INTEGER,
+  );
   const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
 
   try {
@@ -124,16 +140,18 @@ export async function merchantAgentRound(input: {
           execute: async () => ({
             floorCents,
             floorUsd: usd(floorCents),
-            listUsd: usd(input.listPriceCents),
+            listUsd: usd(anchorCents),
           }),
         }),
         check_inventory: tool({
           description: "Units in stock for this product right now.",
           inputSchema: z.object({}),
-          execute: async () => ({ units: stockFor(input.productId) }),
+          execute: async () => ({
+            units: input.stockUnits ?? stockFor(input.productId),
+          }),
         }),
       },
-      prompt: `${input.sellerName ? `You sell for "${input.sellerName}". ` : ""}${STYLE_HINT[input.style ?? "balanced"] ?? STYLE_HINT.balanced}\nProduct: "${input.productTitle}" — list price ${usd(input.listPriceCents)}. Round ${input.roundsUsed} of ${input.maxRounds ?? 4}. Buyer's offer: ${usd(input.offerCents)}. Check your floor and decide.`,
+      prompt: `${input.sellerName ? `You sell for "${input.sellerName}". ` : ""}${STYLE_HINT[input.style ?? "balanced"] ?? STYLE_HINT.balanced}\nProduct: "${input.productTitle}" — ${input.promoCents ? `a promotion is running, advertised price ${usd(anchorCents)} (regular ${usd(input.listPriceCents)})` : `list price ${usd(anchorCents)}`}. Round ${input.roundsUsed} of ${input.maxRounds ?? 4}. Buyer's offer: ${usd(input.offerCents)}. Check your floor and decide.`,
       stopWhen: stepCountIs(4),
       maxOutputTokens: 700,
     });

@@ -189,6 +189,18 @@ create table if not exists merchant_sales (
 alter table merchant_sales add column if not exists buyer_order_id text;
 alter table merchant_sales add column if not exists tracking_number text;
 alter table merchant_sales add column if not exists carrier text;
+alter table merchant_sales add column if not exists list_cents integer;
+create table if not exists seller_campaigns (
+  id text primary key,
+  user_id text not null,
+  name text not null,
+  pct_off integer not null,
+  product_id text,
+  starts_at timestamptz default now(),
+  ends_at timestamptz,
+  active boolean not null default true,
+  created_at timestamptz default now()
+);
 create table if not exists reorder_rules (
   id text primary key,
   user_id text not null,

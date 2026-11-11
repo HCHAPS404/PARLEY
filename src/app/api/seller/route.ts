@@ -1,7 +1,7 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
-import { merchantProfiles, merchantSales, sellerEvents, sellerProducts } from "@/lib/db/schema";
+import { merchantProfiles, merchantSales, sellerCampaigns, sellerEvents, sellerProducts } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 
@@ -66,13 +66,66 @@ export async function GET() {
     ? Math.round(sales.reduce((s, x) => s + x.agreedCents, 0) / sales.length)
     : 0;
 
+  // Negotiation funnel — how offers turned into revenue.
+  const funnel = { offers: 0, counters: 0, accepts: 0, walks: 0 };
+  for (const e of events) {
+    if (e.kind === "offer") funnel.offers++;
+    else if (e.kind === "counter") funnel.counters++;
+    else if (e.kind === "accept") funnel.accepts++;
+    else if (e.kind === "walk") funnel.walks++;
+  }
+
+  // Average discount the agent conceded vs list price at close.
+  const discounted = sales.filter((s) => s.listCents && s.listCents > s.agreedCents);
+  const avgDiscountPct = discounted.length
+    ? Math.round(
+        (discounted.reduce((s, x) => s + (1 - x.agreedCents / x.listCents!), 0) /
+          discounted.length) * 100,
+      )
+    : 0;
+
+  // Top products by negotiated revenue.
+  const byProduct = new Map<string, { revenueCents: number; units: number }>();
+  for (const s of sales) {
+    const cur = byProduct.get(s.productTitle) ?? { revenueCents: 0, units: 0 };
+    cur.revenueCents += s.agreedCents;
+    cur.units++;
+    byProduct.set(s.productTitle, cur);
+  }
+  const topProducts = [...byProduct.entries()]
+    .map(([title, v]) => ({ title, ...v }))
+    .sort((a, b) => b.revenueCents - a.revenueCents)
+    .slice(0, 5);
+
+  const campaigns = await db
+    .select()
+    .from(sellerCampaigns)
+    .where(eq(sellerCampaigns.userId, user.id))
+    .orderBy(desc(sellerCampaigns.createdAt))
+    .limit(20);
+
+  const lowStock = products.filter((p) => p.stock <= 3);
+  const pendingShip = sales.filter((s) => s.status === "agreed" || s.status === "invoiced");
+  const revenueCents = sales.reduce((s, x) => s + x.agreedCents, 0);
+
   return NextResponse.json({
     profile: profile ?? null,
     products,
     sales,
     events: events.slice(0, 30),
     leads,
-    stats: { threads: threadCount, conversionPct, avgSaleCents },
+    campaigns,
+    stats: {
+      threads: threadCount,
+      conversionPct,
+      avgSaleCents,
+      avgDiscountPct,
+      revenueCents,
+      funnel,
+      topProducts,
+      lowStockCount: lowStock.length,
+      pendingShipCount: pendingShip.length,
+    },
   });
 }
 
@@ -93,6 +146,10 @@ export async function POST(req: Request) {
     trackingNumber?: string;
     carrier?: string;
     csv?: string;
+    name?: string;
+    pctOff?: number;
+    days?: number;
+    campaignId?: string;
   };
   await ensureDb();
   const db = getDb();
@@ -218,6 +275,53 @@ export async function POST(req: Request) {
       input: { saleId, trackingNumber, carrier, buyerOrderId: sale.buyerOrderId },
       rationale: "Seller shipped — tracking flows into the buyer's escrow watch",
     });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "addCampaign") {
+    const name = String(body.name ?? "").trim().slice(0, 80);
+    const pctOff = Math.min(70, Math.max(1, Math.round(Number(body.pctOff) || 0)));
+    if (!name || !pctOff)
+      return NextResponse.json({ error: "name + pctOff (1–70) required" }, { status: 400 });
+    const days = Math.min(90, Math.max(0, Math.round(Number(body.days) || 0)));
+    const id = `camp_${crypto.randomUUID().slice(0, 8)}`;
+    await db.insert(sellerCampaigns).values({
+      id,
+      userId: user.id,
+      name,
+      pctOff,
+      productId: body.productId ? String(body.productId) : null,
+      endsAt: days > 0 ? new Date(Date.now() + days * 86_400_000) : null,
+    });
+    await audit({
+      actor: "user", action: "seller_campaign_start",
+      userId: user.id,
+      input: { name, pctOff, productId: body.productId ?? null, days },
+      rationale: "Seller launched a promotion — their agent advertises the promo price and floors at it",
+    });
+    return NextResponse.json({ ok: true, id });
+  }
+
+  if (body.action === "endCampaign") {
+    await db
+      .update(sellerCampaigns)
+      .set({ active: false })
+      .where(eq(sellerCampaigns.id, String(body.campaignId)));
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "updateProduct") {
+    const priceUsd = Number(body.priceUsd);
+    const stock = Math.round(Number(body.stock));
+    const fields: Partial<{ priceCents: number; stock: number }> = {};
+    if (Number.isFinite(priceUsd) && priceUsd > 0) fields.priceCents = Math.round(priceUsd * 100);
+    if (Number.isInteger(stock) && stock >= 0) fields.stock = stock;
+    if (!Object.keys(fields).length)
+      return NextResponse.json({ error: "priceUsd and/or stock required" }, { status: 400 });
+    await db
+      .update(sellerProducts)
+      .set(fields)
+      .where(eq(sellerProducts.id, String(body.productId)));
     return NextResponse.json({ ok: true });
   }
 
