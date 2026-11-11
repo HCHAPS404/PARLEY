@@ -303,8 +303,11 @@ export function ChatArea({
           ))}
           {busy && <Thinking />}
           {error && (
-            <div className="rounded-lg border border-danger/20 bg-danger-soft px-4 py-3 text-[13px] text-danger">
-              {error.message}
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-danger/20 bg-danger-soft px-4 py-3 text-[13px] text-danger">
+              <div>
+                <span className="font-medium">{t("chat.errorTitle")}</span>{" "}
+                {error.message}
+              </div>
             </div>
           )}
         </div>

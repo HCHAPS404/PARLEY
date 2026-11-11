@@ -246,7 +246,7 @@ These are invariants, not features — the code enforces them:
 5. **Secrets stay server-side.** Only `NEXT_PUBLIC_*` variables reach the browser; the PayPal secret never does.
 6. **Tool results are data.** The system prompt instructs the model to treat tool output as untrusted content, never as instructions.
 7. **Audit never lies.** `audit()` wraps every consequential action and fails safe — a logging problem can never block or corrupt a payment path.
-8. **Authenticated, role-gated spend.** Sessions are httpOnly + server-side (scrypt passwords, SHA-256'd tokens). Only `admin` reaches spend tools and the merchant-account PayPal toolkit; `demo` accounts can search and negotiate under a hard daily message cap.
+8. **Authenticated, role-gated spend.** Sessions are httpOnly + server-side (scrypt passwords, SHA-256'd tokens). Three tiers: `admin` (owner — adds the merchant-account PayPal toolkit), `user` (full buyer agent, spend gated by policy + human approval), `demo` (search + negotiate only, hard daily cap).
 9. **The merchant's floor is law — not a suggestion.** The A2A merchant agent reasons freely, but the server clamps every decision: it can never accept or counter below its margin floor, whatever the model outputs.
 10. **Autonomy is bounded and approved.** Reorder rules run inside `checkPolicy` + the per-space `autonomous_limit_cents`. Within bounds the agent prepares the order — a human still approves it on PayPal. Above the limit it can only propose.
 
@@ -418,6 +418,9 @@ itself in production.
 - [x] Close-rate KPI + bulk CSV catalog import for sellers
 - [x] Actionable Inbox — product links on cards & deal alerts, manual "Check now" watchdog trigger
 - [x] Onboarding checklist + kanban order pipeline
+- [x] Order detail drawer — per-order escrow timeline, held/released amounts, negotiated savings
+- [x] Member role — registered users get the full buyer agent; demo stays read-only
+- [x] Error boundaries, OG share card, security headers, skeleton loading, a11y pass
 - [x] 24 invariant tests — policy caps/allowlist, merchant floor law, demo tool surface, i18n parity
 - [ ] Neon Realtime live dashboard updates
 
