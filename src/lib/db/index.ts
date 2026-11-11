@@ -318,12 +318,11 @@ async function backfillSpaces(db: Db) {
           returning id`,
     )) as unknown;
     const created = (Array.isArray(spaceRes) ? spaceRes : (spaceRes as { rows?: { id: string }[] })?.rows ?? []) as { id: string }[];
-    const [space] =
-      created.length > 0
-        ? created
-        : (((await db.execute(
-            sql`select id from spaces where user_id = ${userId} order by created_at limit 1`,
-          )) as unknown) as { id: string }[]);
+    const existingRes = (await db.execute(
+      sql`select id from spaces where user_id = ${userId} order by created_at limit 1`,
+    )) as unknown;
+    const existing = (Array.isArray(existingRes) ? existingRes : (existingRes as { rows?: { id: string }[] })?.rows ?? []) as { id: string }[];
+    const [space] = created.length > 0 ? created : existing;
     if (!space) continue;
     // The space gets its own policy row — caps are per-space, never shared.
     await db.execute(
