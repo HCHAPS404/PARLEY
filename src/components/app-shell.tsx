@@ -7,9 +7,9 @@ import {
   BarChart3,
   Bell,
   Boxes,
-  ChevronDown,
+  CreditCard,
+  FileText,
   Landmark,
-  LayoutDashboard,
   LogOut,
   MessagesSquare,
   Moon,
@@ -35,16 +35,14 @@ const NAV_BUYER = [
 ] as const;
 
 const NAV_SELLER = [
-  { href: "/inbox", key: "nav.inbox", icon: Bell },
-  { href: "/settings", key: "nav.settings", icon: Settings },
-] as const;
-
-/** Store console — an expandable group under "My store". Copilot stays a
- * top-level item: the seller's chatbot must be one click away, not nested. */
-const NAV_STORE = [
-  { href: "/seller", key: "nav.seller.overview", icon: LayoutDashboard, exact: true },
+  { href: "/seller", key: "nav.seller", icon: Store, exact: true },
+  { href: "/seller/copilot", key: "nav.seller.copilot", icon: Sparkles, ai: true },
   { href: "/seller/inventory", key: "nav.seller.inventory", icon: Boxes },
   { href: "/seller/orders", key: "nav.seller.orders", icon: Package },
+  { href: "/seller/invoices", key: "nav.seller.invoices", icon: FileText },
+  { href: "/seller/payments", key: "nav.seller.payments", icon: CreditCard },
+  { href: "/inbox", key: "nav.inbox", icon: Bell },
+  { href: "/settings", key: "nav.settings", icon: Settings },
 ] as const;
 
 export function AppShell({
@@ -57,7 +55,6 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [inboxCount, setInboxCount] = useState(0);
-  const [storeOpen, setStoreOpen] = useState(true);
   const [storePulse, setStorePulse] = useState<{
     profile: { displayName: string; floorRatioPct: number } | null;
     stats?: { pendingShipCount: number; lowStockCount: number };
@@ -112,66 +109,11 @@ export function AppShell({
         {user.persona !== "seller" && <SpaceSwitcher />}
 
         <nav className="flex flex-col gap-1 p-3 text-sm">
-          {user.persona === "seller" && (
-            <div>
-              <button
-                onClick={() => setStoreOpen((o) => !o)}
-                className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 transition-colors ${
-                  pathname.startsWith("/seller")
-                    ? "bg-accent-mist font-medium text-accent-strong"
-                    : "text-ink-soft hover:bg-paper hover:text-ink"
-                }`}
-              >
-                <Store className="h-4 w-4" />
-                {t("nav.seller")}
-                <ChevronDown
-                  className={`ml-auto h-3.5 w-3.5 transition-transform ${storeOpen ? "" : "-rotate-90"}`}
-                />
-              </button>
-              {storeOpen && (
-                <div className="ml-4 mt-1 flex flex-col gap-0.5 border-l border-line pl-3">
-                  {NAV_STORE.map(({ href, key, icon: Icon, ...item }) => {
-                    const active =
-                      "exact" in item && item.exact
-                        ? pathname === href
-                        : pathname.startsWith(href);
-                    return (
-                      <Link
-                        key={href}
-                        href={href}
-                        className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors ${
-                          active
-                            ? "font-medium text-accent-strong"
-                            : "text-ink-soft hover:text-ink"
-                        }`}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                        {t(key)}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-          {user.persona === "seller" && (
-            <Link
-              href="/seller/copilot"
-              className={`flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors ${
-                pathname === "/seller/copilot"
-                  ? "bg-accent-mist font-medium text-accent-strong"
-                  : "text-ink-soft hover:bg-paper hover:text-ink"
-              }`}
-            >
-              <Sparkles className="h-4 w-4" />
-              {t("nav.seller.copilot")}
-              <span className="ml-auto rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent-strong">
-                AI
-              </span>
-            </Link>
-          )}
-          {(user.persona === "seller" ? NAV_SELLER : NAV_BUYER).map(({ href, key, icon: Icon }) => {
-            const active = pathname.startsWith(href);
+          {(user.persona === "seller" ? NAV_SELLER : NAV_BUYER).map(({ href, key, icon: Icon, ...item }) => {
+            const active =
+              "exact" in item && item.exact
+                ? pathname === href
+                : pathname.startsWith(href);
             return (
               <Link
                 key={href}
@@ -184,6 +126,11 @@ export function AppShell({
               >
                 <Icon className="h-4 w-4" />
                 {t(key)}
+                {"ai" in item && item.ai && (
+                  <span className="ml-auto rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent-strong">
+                    AI
+                  </span>
+                )}
                 {key === "nav.inbox" && inboxCount > 0 && (
                   <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-paper">
                     {inboxCount}
