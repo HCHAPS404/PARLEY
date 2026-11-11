@@ -19,7 +19,7 @@ const ASSETS: Record<string, string> = {
   "market-radar":
     `a large professional monitor on a black desk in a dark studio glowing with a market analytics dashboard: circular radar visualization, rising price curves and product thumbnails, screen light spilling onto the desk, ${STYLE}`,
   "seller-sleep":
-    `a cozy small boutique after closing at night, warm desk lamp glowing on the counter next to an open laptop showing a sales dashboard, the shop owner sleeping peacefully in a chair behind the counter wrapped in a blanket, moonlight through the storefront window, cinematic night photography, photorealistic, no text, no watermark`,
+    `a small boutique counter after closing at night, empty chair with a knitted blanket draped over it, an open laptop glowing with a sales dashboard left running, warm brass desk lamp, moonlight through the storefront window, keys resting on the counter, nobody present, cinematic night photography, photorealistic, no text, no watermark`,
   "empty-inbox":
     `a tidy minimal desk in soft morning light with a closed laptop, a small potted plant and an empty coffee mug, everything finished and organized, calm and airy, editorial photo, photorealistic, no text, no watermark`,
   "empty-catalog":
