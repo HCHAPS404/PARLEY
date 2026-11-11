@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
 import { SellerDashboard } from "@/components/seller";
+import { PageHeader } from "@/components/page-header";
 
 export default function SellerPage() {
   return (
@@ -25,12 +26,7 @@ async function AuthedSeller() {
   return (
     <AppShell user={{ username: user.username, role: user.role, persona: user.persona }}>
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="border-b border-line px-6 py-3">
-          <h1 className="font-display text-lg font-semibold">Your store</h1>
-          <p className="text-xs text-ink-soft">
-            Your agent sells while you sleep — catalog, negotiations, and closed deals.
-          </p>
-        </header>
+        <PageHeader title="hdr.seller" sub="hdr.sellerSub" />
         <main className="min-h-0 flex-1 overflow-y-auto">
           <SellerDashboard />
         </main>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { PackageCheck, PackageX, Truck } from "lucide-react";
+import { PackageCheck, PackageX, Receipt, Truck, X } from "lucide-react";
 import { usePrefs } from "./preferences";
 
 interface Order {
@@ -16,8 +16,17 @@ interface Order {
   overdue: boolean;
   expectedDelivery: string;
   createdAt: string | null;
+  updatedAt: string | null;
+  deliveredAt: string | null;
   trackingNumber: string | null;
   carrier: string | null;
+  trackingStatus: string | null;
+  invoiceId: string | null;
+  authorizationExpiresAt: string | null;
+  quantity: number;
+  agreedPriceCents: number | null;
+  negotiated: boolean;
+  reorderRuleId: string | null;
 }
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
@@ -33,6 +42,7 @@ const COLS = [
 export function Pipeline({ role }: { role: string }) {
   const { t } = usePrefs();
   const [orders, setOrders] = useState<Order[] | null>(null);
+  const [selected, setSelected] = useState<Order | null>(null);
 
   useEffect(() => {
     const load = () =>
@@ -92,8 +102,11 @@ export function Pipeline({ role }: { role: string }) {
               {items.map((o) => (
                 <article
                   key={o.id}
-                  className={`rounded-lg border bg-card p-3 transition-colors ${
-                    o.overdue ? "border-danger/50" : "border-line hover:border-ink-soft/40"
+                  onClick={() => setSelected(o)}
+                  className={`cursor-pointer rounded-lg border bg-card p-3 transition-all ${
+                    o.overdue
+                      ? "border-danger/50"
+                      : "border-line hover:-translate-y-0.5 hover:border-ink-soft/40 hover:shadow-sm"
                   }`}
                 >
                   <div className="line-clamp-2 text-[13px] font-medium leading-snug">{o.title}</div>
@@ -117,6 +130,7 @@ export function Pipeline({ role }: { role: string }) {
                   {o.status === "delivered" && role !== "demo" && (
                     <Link
                       href="/inbox"
+                      onClick={(e) => e.stopPropagation()}
                       className="mt-2 flex items-center justify-center gap-1.5 rounded-md bg-accent px-2 py-1.5 text-[11px] font-medium text-white hover:bg-accent-strong"
                     >
                       <PackageCheck className="h-3 w-3" /> {t("pipe.release")}
@@ -136,6 +150,147 @@ export function Pipeline({ role }: { role: string }) {
           </section>
         );
       })}
+      {selected && (
+        <OrderDrawer order={selected} onClose={() => setSelected(null)} />
+      )}
     </div>
+  );
+}
+
+/** Slide-over order detail — the escrow's life so far, step by step. */
+function OrderDrawer({
+  order: o,
+  onClose,
+}: {
+  order: Order;
+  onClose: () => void;
+}) {
+  const { t } = usePrefs();
+
+  const steps: { key: string; done: boolean; when: string | null }[] = [
+    { key: "created", done: true, when: o.createdAt },
+    { key: "authorized", done: o.stage >= 2, when: o.stage >= 2 ? o.updatedAt : null },
+    { key: "transit", done: !!o.trackingStatus, when: o.trackingStatus ?? null },
+    { key: "delivered", done: !!o.deliveredAt, when: o.deliveredAt },
+    { key: "released", done: o.status === "captured", when: o.status === "captured" ? o.updatedAt : null },
+  ];
+
+  const saved =
+    o.negotiated && o.agreedPriceCents != null
+      ? o.amountCents - o.agreedPriceCents
+      : 0;
+
+  const fmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : null;
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-ink/20 backdrop-blur-[1px]"
+        onClick={onClose}
+      />
+      <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-line bg-card shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-line p-5">
+          <div className="min-w-0">
+            <h2 className="font-display text-[15px] font-semibold leading-snug">
+              {o.title}
+            </h2>
+            <p className="mt-0.5 text-[11px] uppercase tracking-wide text-ink-soft">
+              {o.status} · {o.vendor ?? "—"}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 text-ink-soft hover:bg-paper hover:text-ink"
+            aria-label={t("common.close")}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-5 overflow-y-auto p-5">
+          {/* Money block */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-line bg-paper p-3">
+              <div className="text-[10px] uppercase tracking-wide text-ink-soft">{t("pipe.d.held")}</div>
+              <div className="mt-1 font-display text-lg font-semibold">{usd(o.amountCents)}</div>
+            </div>
+            <div className="rounded-lg border border-line bg-paper p-3">
+              <div className="text-[10px] uppercase tracking-wide text-ink-soft">{t("pipe.d.released")}</div>
+              <div className="mt-1 font-display text-lg font-semibold text-ok">
+                {usd(o.capturedCents)}
+              </div>
+            </div>
+          </div>
+          {saved > 0 && (
+            <div className="rounded-lg border border-ok/30 bg-ok-soft px-3 py-2 text-[12px] font-medium text-ok">
+              {t("pipe.d.saved", { n: usd(saved) })}
+            </div>
+          )}
+
+          {/* Lifecycle timeline */}
+          <ol className="relative space-y-4 border-l border-line pl-5">
+            {steps.map((s) => (
+              <li key={s.key} className="relative">
+                <span
+                  className={`absolute -left-[26px] top-1 h-2.5 w-2.5 rounded-full ${
+                    s.done ? "bg-ok" : "border border-line bg-card"
+                  }`}
+                />
+                <div className={`text-[12px] font-medium ${s.done ? "text-ink" : "text-ink-soft/60"}`}>
+                  {t(`pipe.step.${s.key}` as never)}
+                </div>
+                {s.when && (
+                  <div className="text-[10px] text-ink-soft">
+                    {s.key === "transit" && !s.when.includes("T") ? s.when : fmt(s.when)}
+                  </div>
+                )}
+              </li>
+            ))}
+            {o.stage === -1 && (
+              <li className="relative">
+                <span className="absolute -left-[26px] top-1 h-2.5 w-2.5 rounded-full bg-danger" />
+                <div className="text-[12px] font-medium text-danger">{t("pipe.step.closed")}</div>
+              </li>
+            )}
+          </ol>
+
+          {/* Facts */}
+          <dl className="space-y-2.5 border-t border-line pt-4 text-[12px]">
+            <div className="flex justify-between gap-3">
+              <dt className="text-ink-soft">{t("pipe.d.orderId")}</dt>
+              <dd className="truncate font-mono text-[11px]">{o.id}</dd>
+            </div>
+            {o.trackingNumber && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-soft">{t("pipe.d.tracking")}</dt>
+                <dd className="truncate font-mono text-[11px]">
+                  {o.carrier} {o.trackingNumber}
+                </dd>
+              </div>
+            )}
+            {o.invoiceId && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-soft">{t("pipe.d.invoice")}</dt>
+                <dd className="flex items-center gap-1 font-mono text-[11px]">
+                  <Receipt className="h-3 w-3" /> {o.invoiceId}
+                </dd>
+              </div>
+            )}
+            {o.stage >= 0 && o.stage < 4 && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-soft">{t("pipe.d.expected")}</dt>
+                <dd>{new Date(o.expectedDelivery).toLocaleDateString()}</dd>
+              </div>
+            )}
+            {o.reorderRuleId && (
+              <div className="rounded-md bg-accent-mist px-2 py-1.5 text-[11px] font-medium text-accent-strong">
+                {t("pipe.d.auto")}
+              </div>
+            )}
+          </dl>
+        </div>
+      </aside>
+    </>
   );
 }

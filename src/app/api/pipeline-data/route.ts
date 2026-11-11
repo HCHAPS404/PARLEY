@@ -46,9 +46,17 @@ export async function GET() {
         overdue: st >= 0 && st < 4 && !o.deliveredAt && expected < now,
         expectedDelivery: new Date(expected).toISOString(),
         createdAt: o.createdAt?.toISOString() ?? null,
+        updatedAt: o.updatedAt?.toISOString() ?? null,
         deliveredAt: o.deliveredAt?.toISOString() ?? null,
         trackingNumber: o.trackingNumber,
         carrier: o.carrier,
+        trackingStatus: o.trackingStatus,
+        invoiceId: o.invoiceId,
+        authorizationExpiresAt: o.authorizationExpiresAt?.toISOString() ?? null,
+        quantity: o.quantity,
+        agreedPriceCents: o.agreedPriceCents,
+        negotiated: o.negotiated,
+        reorderRuleId: o.reorderRuleId,
       };
     }),
   });

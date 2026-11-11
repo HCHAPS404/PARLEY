@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
 import { InboxPanel } from "@/components/inbox";
+import { PageHeader } from "@/components/page-header";
 
 export default function InboxPage() {
   return (
@@ -25,12 +26,7 @@ async function AuthedInbox() {
   return (
     <AppShell user={{ username: user.username, role: user.role, persona: user.persona }}>
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="border-b border-line px-6 py-3">
-          <h1 className="font-display text-lg font-semibold">Approvals</h1>
-          <p className="text-xs text-ink-soft">
-            The agent prepares — you decide. Deliveries, reorders, and anything needing a human.
-          </p>
-        </header>
+        <PageHeader title="hdr.inbox" sub="hdr.inboxSub" />
         <main className="min-h-0 flex-1 overflow-y-auto">
           <InboxPanel role={user.role} />
         </main>

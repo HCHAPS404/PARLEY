@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
+import { ExportLink } from "@/components/export-link";
 import { Dashboard } from "@/components/dashboard";
 
 export default function AnalyticsPage() {
@@ -25,20 +27,11 @@ async function AuthedAnalytics() {
   return (
     <AppShell user={{ username: user.username, role: user.role, persona: user.persona }}>
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-line px-6 py-3">
-          <h1 className="font-display text-lg font-semibold">
-            Procurement analytics
-          </h1>
-          <a
-            href="/api/export"
-            className="rounded-md border border-line px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:text-ink"
-          >
-            Export CSV
-          </a>
-          <p className="text-xs text-ink-soft">
-            What the agent bought, what it cost, and whether vendors delivered.
-          </p>
-        </header>
+        <PageHeader
+          title="hdr.analytics"
+          sub="hdr.analyticsSub"
+          action={<ExportLink />}
+        />
         <main className="min-h-0 flex-1 overflow-hidden">
           <Dashboard />
         </main>
