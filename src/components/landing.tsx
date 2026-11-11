@@ -116,31 +116,45 @@ export function Landing({ authed }: { authed: boolean }) {
       <section className="relative overflow-hidden pt-14">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,var(--color-line)_1px,transparent_0)] [background-size:28px_28px] opacity-60" />
         <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[52rem] -translate-x-1/2 rounded-full bg-accent/10 blur-3xl" />
-        <div className="relative mx-auto max-w-4xl px-5 pb-16 pt-20 text-center sm:pt-28">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-line bg-card px-3.5 py-1.5 text-[11px] font-medium text-ink-soft">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            {t("land.hero.kicker")}
-          </div>
-          <h1 className="font-display mx-auto mt-6 max-w-3xl text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl">
-            {t("land.hero.title")}
-          </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-7 text-ink-soft sm:text-[16px]">
-            {t("land.hero.sub")}
-          </p>
-          <div className="mt-8 flex items-center justify-center gap-3">
-            <button
-              onClick={() => router.push(authed ? "/app" : "/login")}
-              className="flex items-center gap-2 rounded-xl bg-accent px-5 py-3 text-[14px] font-medium text-white shadow-sm transition-all hover:bg-accent-strong hover:shadow-md"
-            >
-              {authed ? t("land.nav.openApp") : t("land.hero.cta")}
-              <ArrowRight className="h-4 w-4" />
-            </button>
-            <a
-              href="#how"
-              className="rounded-xl border border-line bg-card px-5 py-3 text-[14px] font-medium text-ink transition-colors hover:border-ink-soft"
-            >
-              {t("land.hero.ctaSecondary")}
-            </a>
+        <div className="relative mx-auto max-w-6xl px-5 pb-16 pt-20 sm:pt-28">
+          <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_1fr]">
+            <div className="text-center lg:text-left">
+              <div className="inline-flex items-center gap-2 rounded-full border border-line bg-card px-3.5 py-1.5 text-[11px] font-medium text-ink-soft">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                {t("land.hero.kicker")}
+              </div>
+              <h1 className="font-display mx-auto mt-6 max-w-3xl text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl lg:mx-0">
+                {t("land.hero.title")}
+              </h1>
+              <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-7 text-ink-soft sm:text-[16px] lg:mx-0">
+                {t("land.hero.sub")}
+              </p>
+              <div className="mt-8 flex items-center justify-center gap-3 lg:justify-start">
+                <button
+                  onClick={() => router.push(authed ? "/app" : "/login")}
+                  className="flex items-center gap-2 rounded-xl bg-accent px-5 py-3 text-[14px] font-medium text-white shadow-sm transition-all hover:bg-accent-strong hover:shadow-md"
+                >
+                  {authed ? t("land.nav.openApp") : t("land.hero.cta")}
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <a
+                  href="#how"
+                  className="rounded-xl border border-line bg-card px-5 py-3 text-[14px] font-medium text-ink transition-colors hover:border-ink-soft"
+                >
+                  {t("land.hero.ctaSecondary")}
+                </a>
+              </div>
+            </div>
+            <div className="relative mx-auto w-full max-w-md lg:max-w-none">
+              <div className="pointer-events-none absolute -inset-4 rounded-[2rem] bg-accent-mist/60 blur-2xl" />
+              {/* eslint-disable-next-line @next/next/no-img-element -- brand illustration, no optimization needed */}
+              <img
+                src="/gen/hero-user.webp"
+                alt={t("land.hero.imgAlt")}
+                className="relative w-full rounded-[1.75rem] border border-line/60 shadow-lg shadow-ink/10"
+                loading="eager"
+              />
+            </div>
           </div>
 
           {/* Animated product demo */}
@@ -224,6 +238,39 @@ export function Landing({ authed }: { authed: boolean }) {
         </div>
       </section>
 
+      {/* ── Two agents, one protocol ─────────────────── */}
+      <section className="border-t border-line bg-card">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-20 lg:grid-cols-2">
+          <div className="relative order-2 lg:order-1">
+            {/* eslint-disable-next-line @next/next/no-img-element -- brand illustration */}
+            <img
+              src="/gen/agents-meet.webp"
+              alt={t("land.agents.imgAlt")}
+              className="w-full rounded-[1.75rem] border border-line/60 shadow-lg shadow-ink/10"
+              loading="lazy"
+            />
+          </div>
+          <div className="order-1 lg:order-2">
+            <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+              {t("land.agents.title")}
+            </h2>
+            <p className="mt-4 text-[14px] leading-6 text-ink-soft">
+              {t("land.agents.sub")}
+            </p>
+            <ul className="mt-6 space-y-3">
+              {(
+                ["land.agents.b1", "land.agents.b2", "land.agents.b3"] as I18nKey[]
+              ).map((k) => (
+                <li key={k} className="flex items-start gap-3 text-[13px]">
+                  <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                  <span className="text-ink-soft">{t(k)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
       {/* ── Beyond sourcing ───────────────────────────── */}
       <section className="border-t border-line">
         <div className="mx-auto max-w-6xl px-5 py-20">
@@ -233,6 +280,15 @@ export function Landing({ authed }: { authed: boolean }) {
           <p className="mx-auto mt-3 max-w-xl text-center text-[14px] text-ink-soft">
             {t("land.more.sub")}
           </p>
+          <div className="mx-auto mt-10 max-w-3xl">
+            {/* eslint-disable-next-line @next/next/no-img-element -- brand illustration */}
+            <img
+              src="/gen/market-radar.webp"
+              alt={t("land.more.imgAlt")}
+              className="w-full rounded-[1.75rem] border border-line/60 shadow-lg shadow-ink/10"
+              loading="lazy"
+            />
+          </div>
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {(
               [
@@ -360,6 +416,39 @@ export function Landing({ authed }: { authed: boolean }) {
               audited · reconcile-able · dispute-ready
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ── Final CTA ─────────────────────────────────── */}
+      <section className="border-t border-line bg-card">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-16 lg:grid-cols-[1fr_320px]">
+          <div>
+            <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+              {t("land.cta.title")}
+            </h2>
+            <p className="mt-3 max-w-xl text-[14px] leading-6 text-ink-soft">
+              {t("land.cta.sub")}
+            </p>
+            <div className="mt-6 flex items-center gap-3">
+              <Link
+                href="/login"
+                className="flex items-center gap-2 rounded-xl bg-accent px-5 py-3 text-[14px] font-medium text-white shadow-sm transition-all hover:bg-accent-strong hover:shadow-md"
+              >
+                {t("land.hero.cta")}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <span className="text-[11px] text-ink-soft">
+                {t("land.cta.note")}
+              </span>
+            </div>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element -- brand illustration */}
+          <img
+            src="/gen/seller-sleep.webp"
+            alt={t("land.cta.imgAlt")}
+            className="mx-auto w-full max-w-72 rounded-[1.75rem] border border-line/60 shadow-lg shadow-ink/10"
+            loading="lazy"
+          />
         </div>
       </section>
 

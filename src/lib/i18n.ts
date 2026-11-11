@@ -370,6 +370,23 @@ const en = {
     "Verified end-to-end on the PayPal sandbox — real API calls, real holds, zero real money.",
 
   "land.footer.built": "Built for the PayPal AI Hackathon",
+  "land.agents.title": "Two agents, one protocol",
+  "land.agents.sub":
+    "Your buyer agent negotiates with merchant agents over a real A2A boundary — machine to machine, offer to counter-offer, in seconds.",
+  "land.agents.b1":
+    "The merchant agent reasons with its own LLM — and still can't sell below its floor, enforced in code.",
+  "land.agents.b2":
+    "Every round is logged: offers, counters, walk-aways — a negotiation transcript, not a template.",
+  "land.agents.b3":
+    "An accepted quote becomes the order price — server-resolved, never invented by the model.",
+  "land.agents.imgAlt": "Two agent bubbles shaking hands over a product box",
+  "land.more.imgAlt": "A radar screen tracking products and prices on the market",
+  "land.cta.title": "The procurement department you couldn't afford",
+  "land.cta.sub":
+    "Deploy your merchant agent or put your buyer agent to work — the other side is already awake.",
+  "land.cta.note": "Sandbox demo — no real money moves.",
+  "land.cta.imgAlt": "A small shop at night with an agent still working inside",
+  "land.hero.imgAlt": "A person sourcing products on a laptop surrounded by chat bubbles",
   "land.footer.tagline": "Procurement that negotiates — money that waits.",
 
   "common.loading": "Loading…",
@@ -750,6 +767,23 @@ const es: Record<I18nKey, string> = {
     "Verificado end-to-end en el sandbox de PayPal — llamadas reales, holds reales, cero dinero real.",
 
   "land.footer.built": "Construido para el PayPal AI Hackathon",
+  "land.agents.title": "Dos agentes, un protocolo",
+  "land.agents.sub":
+    "Tu agente comprador negocia con agentes mercantiles por una frontera A2A real — máquina a máquina, oferta contra contraoferta, en segundos.",
+  "land.agents.b1":
+    "El agente mercantil razona con su propio LLM — y aun así no puede vender bajo su piso, exigido en código.",
+  "land.agents.b2":
+    "Cada ronda queda registrada: ofertas, contraofertas, retiradas — una transcripción de negociación, no una plantilla.",
+  "land.agents.b3":
+    "Una cotización aceptada se vuelve el precio de la orden — resuelto en el servidor, nunca inventado por el modelo.",
+  "land.agents.imgAlt": "Dos burbujas de agente dándose la mano sobre un producto",
+  "land.more.imgAlt": "Un radar rastreando productos y precios en el mercado",
+  "land.cta.title": "El departamento de compras que no podías pagar",
+  "land.cta.sub":
+    "Despliega tu agente mercantil o pon a trabajar tu agente comprador — el otro lado ya está despierto.",
+  "land.cta.note": "Demo en sandbox — no se mueve dinero real.",
+  "land.cta.imgAlt": "Una tienda de noche con un agente trabajando adentro",
+  "land.hero.imgAlt": "Una persona buscando productos en su laptop rodeada de burbujas de chat",
   "land.footer.tagline": "Procurement que negocia — dinero que espera.",
 
   "common.loading": "Cargando…",

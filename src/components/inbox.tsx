@@ -110,7 +110,12 @@ export function InboxPanel({ role }: { role: string }) {
       )}
       {alerts.length === 0 && (
         <div className="rounded-xl border border-line bg-card p-10 text-center">
-          <CheckCircle2 className="mx-auto h-8 w-8 text-ok" />
+          {/* eslint-disable-next-line @next/next/no-img-element -- illustration */}
+          <img
+            src="/gen/empty-inbox.webp"
+            alt=""
+            className="mx-auto h-28 w-28 rounded-2xl object-cover"
+          />
           <p className="mt-3 font-medium">{t("inbox.empty")}</p>
           <p className="mt-1 text-xs text-ink-soft">{t("inbox.emptySub")}</p>
         </div>

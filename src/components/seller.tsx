@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  BadgeDollarSign, Boxes, Handshake, Plus, Store, Trash2, TrendingUp,
+  BadgeDollarSign, Boxes, Handshake, Plus, Trash2, TrendingUp,
 } from "lucide-react";
 import { usePrefs } from "./preferences";
 import Link from "next/link";
@@ -90,8 +90,13 @@ export function SellerDashboard() {
   if (!profile)
     return (
       <div className="mx-auto max-w-lg p-8 text-center">
-        <Store className="mx-auto h-10 w-10 text-accent" />
-        <h2 className="mt-3 font-display text-lg font-semibold">{t("sell.empty.title")}</h2>
+        {/* eslint-disable-next-line @next/next/no-img-element -- illustration */}
+        <img
+          src="/gen/seller-sleep.webp"
+          alt=""
+          className="mx-auto h-36 w-36 rounded-2xl border border-line object-cover"
+        />
+        <h2 className="mt-4 font-display text-lg font-semibold">{t("sell.empty.title")}</h2>
         <p className="mt-1 text-sm text-ink-soft">{t("sell.empty.sub")}</p>
         <Link href="/settings" className="mt-4 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-strong">
           {t("sell.empty.cta")}
