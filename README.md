@@ -17,9 +17,30 @@
 
 <br/><br/>
 
-**[What it is](#what-is-parley) · [How it works](#how-it-works) · [Why different](#why-it-is-different) · [Tools](#agent-tools) · [Architecture](#architecture) · [Security](#security-model) · [Quickstart](#quickstart) · [Deploy](#deploy) · [Roadmap](#roadmap)**
+**[▶ Demo video](#watch-the-demo) · [What it is](#what-is-parley) · [Try it](#try-it-live--judge-access) · [How it works](#how-it-works) · [Why different](#why-it-is-different) · [Tools](#agent-tools) · [Architecture](#architecture) · [Security](#security-model) · [Quickstart](#quickstart) · [Deploy](#deploy) · [Roadmap](#roadmap)**
 
 </div>
+
+<img src="docs/parley-divider.svg" width="100%" alt="" />
+
+## Watch the demo
+
+<p align="center">
+  <a href="https://youtu.be/UXSnMLlvJtE">
+    <img alt="Watch the Parley demo on YouTube" src="https://img.youtube.com/vi/UXSnMLlvJtE/maxresdefault.jpg" width="760">
+  </a>
+  <br/>
+  <a href="https://youtu.be/UXSnMLlvJtE"><b>▶ Watch on YouTube — youtu.be/UXSnMLlvJtE</b></a>
+</p>
+
+Everything in the film is the **live production app**. Nothing is mocked: the
+buyer agent searches real catalogs and negotiates with two merchant agents on
+camera, creates a PayPal `AUTHORIZE` order, and the seller's AI assistant
+answers from real store numbers. The only edit is that the agent's waiting
+time is sped up, and a badge on screen says so. The film is produced by code
+in [`scripts/video/`](scripts/video): screencast takes, animated slides,
+neural voice-over and an original synthesized score
+([`docs/video-studio.md`](docs/video-studio.md)).
 
 <img src="docs/parley-divider.svg" width="100%" alt="" />
 
@@ -68,6 +89,22 @@ escrow; as `seller1` ship it with any UPS-format tracking → as `buyer1` open
 the order → **Confirm receipt** → Inbox → **release the payment**. Then read
 the thread — the whole deal lifecycle is logged there. Full walkthrough:
 [`docs/demo-script.md`](docs/demo-script.md).
+
+**A living marketplace, not a single demo path.** Two more sellers
+(*PackRight Depot*, *FoamLab Supply*) trade with `buyer1`, and two more buyers
+(`maria`, `ken`) trade with `seller1`. Between them you'll find multiple
+threads with pinned terms and photo evidence, a delivery dispute resolved in
+the thread, open and declined offers, walked negotiations, reorder rules and
+price watches, spread across context-specific spaces like *Bakery launch*.
+
+| Also worth clicking | Where |
+|---|---|
+| **Spaces**: separate budgets and policies per project. Create, rename, recolor or delete them | Sidebar switcher (buyer) |
+| **Parley receipt**: printable invoice / PDF of every escrowed order, with lifecycle and PayPal references | Pipeline → open an order → *Parley receipt* |
+| **Price trace**: list vs. paid price per product over time | Analytics |
+| **Compare**: web offers next to every Parley seller stocking the same item | Agent chat → product card → *Compare sellers* |
+| **Pinned messages and photo attachments** in buyer↔seller threads | Messages |
+| **CSV export** of orders per space | Analytics → *Export CSV* |
 
 **No-login preview:** the seller's public storefront lives at
 [`/s/parcelpro-supply`](https://parley-wt1k.onrender.com/s/parcelpro-supply) —
