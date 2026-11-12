@@ -96,18 +96,16 @@ export async function POST(req: Request) {
     try {
       const created = unwrap(
         await tools["create_invoice"]?.execute?.({
-          detail: {
-            currency_code: "USD",
-            note: String(body.note ?? "").slice(0, 200) || "Parley sale",
-            payment_term: { term_type: "DUE_ON_RECEIPT" },
-          },
+          currency_code: "USD",
+          note: String(body.note ?? "").slice(0, 200) || "Parley sale",
           primary_recipients: [{ billing_info: { email_address: email } }],
           items: [{ name: title.slice(0, 127), quantity: "1", unit_amount: { currency_code: "USD", value } }],
-          amount: { breakdown: { item_total: { currency_code: "USD", value } } },
         }),
       );
       if (created.error) return NextResponse.json({ error: created.error }, { status: 502 });
-      const invoiceId = (created.data as { id?: string } | undefined)?.id;
+      // Toolkit returns a link object ({href: ".../invoices/INV2-..."}) — id lives in the path.
+      const createdObj = (created.data ?? {}) as { id?: string; href?: string };
+      const invoiceId = createdObj.id ?? createdObj.href?.split("/").pop();
       if (!invoiceId) return NextResponse.json({ error: "Invoice creation returned no id" }, { status: 502 });
       const sent = unwrap(await tools["send_invoice"]?.execute?.({ invoice_id: invoiceId }));
       if (sent.error) return NextResponse.json({ error: sent.error }, { status: 502 });
