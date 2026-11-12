@@ -18,6 +18,16 @@ const PRODUCTS: Record<string, string> = {
     `six rolls of clear reinforced packing tape standing in a row, one roll tilted forward showing the glossy tape surface and cardboard core, ${STYLE}`,
   "insulated-box-liner":
     `a folded insulated shipping box liner made of silver metallic foil bubble insulation, slightly open showing the padded interior, ${STYLE}`,
+  "stretch-wrap":
+    `four rolls of clear stretch wrap film for pallet packaging standing upright, one roll with loose film tail, glossy transparent plastic, ${STYLE}`,
+  "kraft-paper-roll":
+    `a single large brown kraft paper roll standing upright, fibrous paper texture visible on the end, ${STYLE}`,
+  "edge-protectors":
+    `a bundle of L-shaped corrugated cardboard edge protectors strapped together, brown kraft color, angled corners visible, ${STYLE}`,
+  "foam-sheets":
+    `a neat stack of white polyethylene foam sheets, soft matte surface, slightly fanned to show thickness, ${STYLE}`,
+  "antistatic-bags":
+    `a small stack of pink anti-static bubble bags with translucent tinted plastic, ${STYLE}`,
 };
 
 async function env(name: string) {
