@@ -30,6 +30,7 @@ import {
   users,
 } from "../db/schema";
 import { merchantAgentRound } from "./merchant";
+import { recordSellerInteraction, repeatDealsFor } from "../relationships";
 import { activeCampaignFor, activeCampaignsMap, promoPriceCents } from "../campaigns";
 import { rateLimit } from "../rate-limit";
 import { env } from "../env";
@@ -1295,12 +1296,46 @@ async function negotiate(
   },
 ) {
   const { merchantId, buyerLabel, buyerEmail, ...round } = args;
-  if (!env.mcpSecret) return merchantAgentRound(await sellerTerms(round));
+  const inProcess = async () => {
+    const terms = await sellerTerms(round);
+    // Loyalty context travels with the round — the merchant weighs repeat buyers.
+    const sellerUserId = await sellerUserFor(round.productId);
+    const repeatDeals = sellerUserId ? await repeatDealsFor(sellerUserId, buyerLabel ?? null) : 0;
+    const resp = await merchantAgentRound({ ...terms, repeatDeals });
+    // The relationship layer records the interaction — without this the
+    // seller's feed/leads/customers stay dark on the in-process path.
+    if (sellerUserId) {
+      await recordSellerInteraction({
+        sellerUserId,
+        productId: round.productId,
+        productTitle: round.productTitle,
+        buyerLabel,
+        kind: resp.action,
+        offerCents: round.offerCents,
+        counterCents: resp.action === "counter" || resp.action === "accept" ? resp.priceCents : null,
+        message: resp.message,
+        listCents: terms.listPriceCents,
+      });
+    }
+    return resp;
+  };
+  if (!env.mcpSecret) return inProcess();
   try {
     return await callMerchantOverMcp({ ...round, merchantId, buyerLabel, buyerEmail });
   } catch {
-    return merchantAgentRound(await sellerTerms(round));
+    return inProcess();
   }
+}
+
+/** Which Parley user owns this catalog product — null for external vendors. */
+async function sellerUserFor(productId: string) {
+  if (!productId.startsWith("sp_")) return null;
+  const [sp] = await getDb()
+    .select({ userId: sellerProducts.userId })
+    .from(sellerProducts)
+    .where(eq(sellerProducts.id, productId))
+    .limit(1);
+  return sp?.userId ?? null;
 }
 
 /** In-process twin of the MCP route's price resolution: the merchant owns its

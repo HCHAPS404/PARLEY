@@ -107,24 +107,26 @@ export async function POST(req: Request) {
     const tools = paypalTools() as Record<string, { execute?: (a: unknown) => Promise<unknown> }>;
     const value = (sale.agreedCents / 100).toFixed(2);
     const created = (await tools["create_invoice"]?.execute?.({
-      detail: { currency_code: "USD", note: "Parley A2A sale", payment_term: { term_type: "DUE_ON_RECEIPT" } },
+      currency_code: "USD",
+      note: "Parley A2A sale",
       primary_recipients: [{ billing_info: { email_address: buyer.email } }],
       items: [{ name: sale.productTitle.slice(0, 127), quantity: "1", unit_amount: { currency_code: "USD", value } }],
-      amount: { breakdown: { item_total: { currency_code: "USD", value } } },
-    })) as { id?: string } | undefined;
-    if (!created?.id)
+    })) as { id?: string; href?: string } | string | undefined;
+    const parsed = typeof created === "string" ? (() => { try { return JSON.parse(created); } catch { return null; } })() : created;
+    const invoiceId = (parsed as { id?: string; href?: string } | null)?.id ?? (parsed as { href?: string } | null)?.href?.split("/").pop();
+    if (!invoiceId)
       return NextResponse.json({ error: "Invoice creation failed" }, { status: 502 });
-    await tools["send_invoice"]?.execute?.({ invoice_id: created.id });
+    await tools["send_invoice"]?.execute?.({ invoice_id: invoiceId });
     await db.update(merchantSales).set({ status: "invoiced" }).where(eq(merchantSales.id, sale.id));
     await db.update(alerts).set({ status: "acted" }).where(eq(alerts.id, alertId));
     await audit({
       actor: "user", action: "sale_invoiced_inbox",
       userId: user.id, spaceId: space.id,
       input: { alertId, saleId: sale.id },
-      output: { invoiceId: created.id },
+      output: { invoiceId },
       rationale: "Seller issued the invoice from the approval inbox",
     });
-    return NextResponse.json({ ok: true, invoiceId: created.id });
+    return NextResponse.json({ ok: true, invoiceId });
   }
 
   if (action === "dismiss") {

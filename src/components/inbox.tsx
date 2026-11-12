@@ -22,6 +22,9 @@ const KIND_META: Record<string, { icon: typeof Bell; label: string; tone: string
   buyer_walked: { icon: TriangleAlert, label: "inbox.kind.buyerWalked", tone: "text-warn" },
   price_drop: { icon: TrendingDown, label: "inbox.kind.priceDrop", tone: "text-accent" },
   deal_found: { icon: Tag, label: "inbox.kind.dealFound", tone: "text-ok" },
+  offer_received: { icon: Tag, label: "inbox.kind.offerReceived", tone: "text-accent" },
+  offer_accepted: { icon: CheckCircle2, label: "inbox.kind.offerAccepted", tone: "text-ok" },
+  offer_declined: { icon: XCircle, label: "inbox.kind.offerDeclined", tone: "text-danger" },
 };
 
 export function InboxPanel({ role }: { role: string }) {
@@ -55,6 +58,34 @@ export function InboxPanel({ role }: { role: string }) {
       const d = await r.json();
       if (!r.ok) setError(d.error ?? t("inbox.actionFailed"));
       else if (d.approveUrl) window.open(d.approveUrl, "_blank", "noopener");
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Targeted offers route through /api/offers — accept creates a real escrow
+   * order and returns the PayPal approval link; then the alert is dismissed. */
+  async function actOffer(alertId: number, offerId: string, action: "accept" | "decline") {
+    setBusy(alertId);
+    setError(null);
+    try {
+      const r = await fetch("/api/offers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, offerId }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setError(d.error ?? t("inbox.actionFailed"));
+        return;
+      }
+      if (d.approveUrl) window.open(d.approveUrl, "_blank", "noopener");
+      await fetch("/api/alerts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ alertId, action: "dismiss" }),
+      });
       await load();
     } finally {
       setBusy(null);
@@ -181,6 +212,24 @@ export function InboxPanel({ role }: { role: string }) {
                   {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("inbox.release")}
                 </button>
               )}
+              {a.kind === "offer_received" && role !== "demo" && typeof p.offerId === "string" && (
+                <>
+                  <button
+                    onClick={() => actOffer(a.id, String(p.offerId), "accept")}
+                    disabled={busy === a.id}
+                    className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50"
+                  >
+                    {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("inbox.acceptOffer")}
+                  </button>
+                  <button
+                    onClick={() => actOffer(a.id, String(p.offerId), "decline")}
+                    disabled={busy === a.id}
+                    className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:text-ink disabled:opacity-50"
+                  >
+                    {t("inbox.declineOffer")}
+                  </button>
+                </>
+              )}
               {a.kind === "sale_closed" && role !== "demo" && typeof p.saleId === "string" && (
                 <button
                   onClick={() => act(a.id, "issueInvoice")}
@@ -199,7 +248,7 @@ export function InboxPanel({ role }: { role: string }) {
                   {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><ExternalLink className="h-3.5 w-3.5" /> {t("inbox.approvePaypal")}</>}
                 </button>
               )}
-              {(a.kind === "reorder_ready" || a.kind === "delivery_overdue" || a.kind === "delivered" || a.kind === "sale_closed" || a.kind === "price_drop" || a.kind === "deal_found" || a.kind === "buyer_walked") && (
+              {(a.kind === "reorder_ready" || a.kind === "delivery_overdue" || a.kind === "delivered" || a.kind === "sale_closed" || a.kind === "price_drop" || a.kind === "deal_found" || a.kind === "buyer_walked" || a.kind === "offer_accepted" || a.kind === "offer_declined" || a.kind === "offer_received") && (
                 <button
                   onClick={() => act(a.id, "dismiss")}
                   disabled={busy === a.id}

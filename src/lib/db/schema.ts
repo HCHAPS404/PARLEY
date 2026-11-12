@@ -244,6 +244,59 @@ export const sellerCampaigns = pgTable("seller_campaigns", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+/** Buyer↔seller conversation thread — created when a deal closes (or a seller
+ * reaches out to a lead). The human layer on top of the agent handshake. */
+export const dealThreads = pgTable("deal_threads", {
+  id: text("id").primaryKey(),
+  buyerUserId: text("buyer_user_id").notNull(),
+  sellerUserId: text("seller_user_id").notNull(),
+  buyerLabel: text("buyer_label"), // display handle as the agent reported it
+  subject: text("subject"), // usually the product title
+  saleId: text("sale_id"), // the merchant_sales row that spawned it, if any
+  lastMsgAt: timestamp("last_msg_at", { withTimezone: true }).defaultNow(),
+  buyerUnread: integer("buyer_unread").notNull().default(0),
+  sellerUnread: integer("seller_unread").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+/** Messages inside a deal thread. senderRole tells which side wrote it. */
+export const dealMessages = pgTable("deal_messages", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id").notNull(),
+  senderUserId: text("sender_user_id").notNull(),
+  senderRole: text("sender_role").notNull(), // buyer|seller
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+/** A targeted offer a seller sends to a specific buyer — the win-back move on
+ * a walked lead, or a loyalty deal for a repeat customer. Accepting creates a
+ * real escrow order at the offered price (server-resolved, never client-sent). */
+export const directOffers = pgTable("direct_offers", {
+  id: text("id").primaryKey(),
+  sellerUserId: text("seller_user_id").notNull(),
+  buyerUserId: text("buyer_user_id").notNull(),
+  productId: text("product_id").notNull(),
+  productTitle: text("product_title").notNull(),
+  priceCents: integer("price_cents").notNull(),
+  listCents: integer("list_cents"), // catalog price for context in the UI
+  note: text("note"),
+  status: text("status").notNull().default("open"), // open|accepted|declined|expired|closed
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+/** Post-delivery rating — feeds vendorScores and the seller's public profile. */
+export const sellerReviews = pgTable("seller_reviews", {
+  id: text("id").primaryKey(),
+  sellerUserId: text("seller_user_id").notNull(),
+  buyerUserId: text("buyer_user_id").notNull(),
+  orderId: text("order_id"), // paypal order id — one review per order
+  rating: integer("rating").notNull(), // 1–5
+  comment: text("comment"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 /** Autonomous procurement rules — the agent reorders on a schedule, inside policy. */
 export const reorderRules = pgTable("reorder_rules", {
   id: text("id").primaryKey(),

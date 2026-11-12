@@ -12,6 +12,7 @@ import {
   Landmark,
   LogOut,
   MessagesSquare,
+  MessageSquare,
   Moon,
   Package,
   Radio,
@@ -20,6 +21,7 @@ import {
   Sparkles,
   Store,
   Sun,
+  Users,
   Workflow,
 } from "lucide-react";
 import { Logo } from "./brand";
@@ -28,6 +30,8 @@ import { usePrefs } from "./preferences";
 
 const NAV_BUYER = [
   { href: "/app", key: "nav.agent", icon: MessagesSquare },
+  { href: "/sellers", key: "nav.sellers", icon: Store },
+  { href: "/messages", key: "nav.messages", icon: MessageSquare },
   { href: "/analytics", key: "nav.analytics", icon: BarChart3 },
   { href: "/pipeline", key: "nav.pipeline", icon: Workflow },
   { href: "/inbox", key: "nav.inbox", icon: Bell },
@@ -39,8 +43,10 @@ const NAV_SELLER = [
   { href: "/seller/copilot", key: "nav.seller.copilot", icon: Sparkles, ai: true },
   { href: "/seller/inventory", key: "nav.seller.inventory", icon: Boxes },
   { href: "/seller/orders", key: "nav.seller.orders", icon: Package },
+  { href: "/seller/customers", key: "nav.seller.customers", icon: Users },
   { href: "/seller/invoices", key: "nav.seller.invoices", icon: FileText },
   { href: "/seller/payments", key: "nav.seller.payments", icon: CreditCard },
+  { href: "/messages", key: "nav.messages", icon: MessageSquare },
   { href: "/inbox", key: "nav.inbox", icon: Bell },
   { href: "/settings", key: "nav.settings", icon: Settings },
 ] as const;

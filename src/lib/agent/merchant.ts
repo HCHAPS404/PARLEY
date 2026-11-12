@@ -118,6 +118,7 @@ export async function merchantAgentRound(input: {
   sellerName?: string;
   promoCents?: number; // active campaign price — anchors the negotiation
   stockUnits?: number; // real catalog stock for the merchant's own products
+  repeatDeals?: number; // past closed deals with this buyer — loyalty context
 }): Promise<MerchantResponse> {
   // Campaign semantics: promo becomes the advertised anchor and the effective
   // floor — the seller explicitly lowered their price, so the agent can close
@@ -151,7 +152,7 @@ export async function merchantAgentRound(input: {
           }),
         }),
       },
-      prompt: `${input.sellerName ? `You sell for "${input.sellerName}". ` : ""}${STYLE_HINT[input.style ?? "balanced"] ?? STYLE_HINT.balanced}\nProduct: "${input.productTitle}" — ${input.promoCents ? `a promotion is running, advertised price ${usd(anchorCents)} (regular ${usd(input.listPriceCents)})` : `list price ${usd(anchorCents)}`}. Round ${input.roundsUsed} of ${input.maxRounds ?? 4}. Buyer's offer: ${usd(input.offerCents)}. Check your floor and decide.`,
+      prompt: `${input.sellerName ? `You sell for "${input.sellerName}". ` : ""}${STYLE_HINT[input.style ?? "balanced"] ?? STYLE_HINT.balanced}\nProduct: "${input.productTitle}" — ${input.promoCents ? `a promotion is running, advertised price ${usd(anchorCents)} (regular ${usd(input.listPriceCents)})` : `list price ${usd(anchorCents)}`}.${input.repeatDeals ? ` This buyer has closed ${input.repeatDeals} deal${input.repeatDeals === 1 ? "" : "s"} with you before — a returning customer worth keeping happy (you may be a touch more generous, but never under the floor).` : ""} Round ${input.roundsUsed} of ${input.maxRounds ?? 4}. Buyer's offer: ${usd(input.offerCents)}. Check your floor and decide.`,
       stopWhen: stepCountIs(4),
       maxOutputTokens: 700,
     });

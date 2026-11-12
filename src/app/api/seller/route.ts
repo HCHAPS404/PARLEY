@@ -1,8 +1,9 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
-import { merchantProfiles, merchantSales, sellerCampaigns, sellerEvents, sellerProducts } from "@/lib/db/schema";
+import { merchantProfiles, merchantSales, sellerCampaigns, sellerEvents, sellerProducts, sellerReviews } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { buyerUserForLabel } from "@/lib/relationships";
 import { audit } from "@/lib/audit";
 
 export const maxDuration = 30;
@@ -117,6 +118,54 @@ export async function GET() {
   const pendingShip = sales.filter((s) => s.status === "agreed" || s.status === "invoiced");
   const revenueCents = sales.reduce((s, x) => s + x.agreedCents, 0);
 
+  // Customers — the relationship ledger aggregated per buyer label: deals,
+  // lifetime spend, last touch, and whether a lead is still warm (their latest
+  // event isn't an accept). Parley buyers resolve to real users so the seller
+  // can send them targeted offers and open a thread.
+  const custMap = new Map<
+    string,
+    { deals: number; spentCents: number; lastAt: Date | null; lastKind: string }
+  >();
+  for (const s of sales) {
+    if (!s.buyerLabel) continue;
+    const c = custMap.get(s.buyerLabel) ?? { deals: 0, spentCents: 0, lastAt: null, lastKind: "accept" };
+    c.deals++;
+    c.spentCents += s.agreedCents;
+    c.lastAt = s.createdAt;
+    c.lastKind = "accept";
+    custMap.set(s.buyerLabel, c);
+  }
+  for (const e of events) {
+    if (!e.buyerLabel) continue;
+    const c = custMap.get(e.buyerLabel) ?? { deals: 0, spentCents: 0, lastAt: null, lastKind: e.kind };
+    if (!c.lastAt || (e.createdAt && e.createdAt > c.lastAt)) {
+      c.lastAt = e.createdAt;
+      c.lastKind = e.kind;
+    }
+    custMap.set(e.buyerLabel, c);
+  }
+  const customers = await Promise.all(
+    [...custMap.entries()].map(async ([label, c]) => {
+      const u = await buyerUserForLabel(label);
+      return {
+        label,
+        buyerUserId: u?.id ?? null,
+        username: u?.username ?? null,
+        deals: c.deals,
+        spentCents: c.spentCents,
+        lastAt: c.lastAt,
+        lastKind: c.lastKind,
+        openLead: c.lastKind !== "accept" && c.deals === 0,
+      };
+    }),
+  );
+  customers.sort((a, b) => b.spentCents - a.spentCents);
+
+  const reviewRows = await db
+    .select({ n: sql<number>`count(*)`, avg: sql<number>`avg(rating)` })
+    .from(sellerReviews)
+    .where(eq(sellerReviews.sellerUserId, user.id));
+
   return NextResponse.json({
     profile: profile ?? null,
     products,
@@ -124,6 +173,11 @@ export async function GET() {
     events: events.slice(0, 30),
     leads,
     campaigns,
+    customers: customers.slice(0, 20),
+    rating: {
+      count: Number(reviewRows[0]?.n ?? 0),
+      avg: Number(reviewRows[0]?.avg ?? 0),
+    },
     stats: {
       threads: threadCount,
       conversionPct,

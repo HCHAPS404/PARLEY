@@ -7,6 +7,7 @@ import { ensureDb, getDb } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { alerts, merchantProfiles, merchantSales, sellerEvents, sellerProducts, spaces } from "@/lib/db/schema";
 import { activeCampaignFor, promoPriceCents } from "@/lib/campaigns";
+import { buyerUserForLabel, ensureThread, postMessage, repeatDealsFor } from "@/lib/relationships";
 import { sql } from "drizzle-orm";
 
 export const maxDuration = 60;
@@ -119,6 +120,9 @@ export async function POST(req: Request) {
           if (campaign) promoCents = promoPriceCents(owned.priceCents, campaign.pctOff);
         }
       }
+      // Loyalty context — past deals with this buyer color the agent's tone.
+      const buyerLabel = args?.buyerLabel ? String(args.buyerLabel) : null;
+      const repeatDeals = profile ? await repeatDealsFor(profile.userId, buyerLabel) : 0;
       const resp = await merchantAgentRound({
         productId,
         productTitle: String(args?.productTitle ?? "Product"),
@@ -130,6 +134,7 @@ export async function POST(req: Request) {
         sellerName: profile?.displayName,
         promoCents,
         stockUnits,
+        repeatDeals,
       });
       // Every round the seller's agent handles lands in their live feed.
       if (profile) {
@@ -137,7 +142,7 @@ export async function POST(req: Request) {
           id: crypto.randomUUID(),
           sellerUserId: profile.userId,
           productTitle: String(args?.productTitle ?? "Product"),
-          buyerLabel: args?.buyerLabel ? String(args.buyerLabel) : null,
+          buyerLabel,
           kind: resp.action,
           offerCents,
           counterCents: resp.action === "counter" || resp.action === "accept" ? resp.priceCents : null,
@@ -154,8 +159,26 @@ export async function POST(req: Request) {
           productTitle: String(args?.productTitle ?? "Product"),
           agreedCents: resp.priceCents,
           listCents: effectiveList,
-          buyerLabel: args?.buyerLabel ? String(args.buyerLabel) : null,
+          buyerLabel,
         });
+        // A closed sale opens the buyer↔seller channel — the relationship
+        // layer turns the A2A handshake into an ongoing conversation.
+        const buyerUser = await buyerUserForLabel(buyerLabel);
+        if (buyerUser) {
+          const thread = await ensureThread({
+            buyerUserId: buyerUser.id,
+            sellerUserId: profile.userId,
+            buyerLabel,
+            subject: String(args?.productTitle ?? "Order"),
+            saleId,
+          });
+          await postMessage({
+            threadId: thread.id,
+            senderUserId: profile.userId,
+            senderRole: "seller",
+            body: `Deal closed at $${(resp.priceCents / 100).toFixed(2)} — your order is on the books. I'll post tracking here when it ships.`,
+          });
+        }
         // A closed sale consumes real stock for catalog products.
         await db.execute(sql`
           update seller_products set stock = greatest(stock - 1, 0)
@@ -175,13 +198,16 @@ export async function POST(req: Request) {
             const tools = paypalTools() as Record<string, { execute?: (a: unknown) => Promise<unknown> }>;
             const value = (resp.priceCents / 100).toFixed(2);
             const created = (await tools["create_invoice"]?.execute?.({
-              detail: { currency_code: "USD", note: `Parley A2A sale — ${profile.displayName}`, payment_term: { term_type: "DUE_ON_RECEIPT" } },
+              currency_code: "USD",
+              note: `Parley A2A sale — ${profile.displayName}`,
               primary_recipients: [{ billing_info: { email_address: buyerEmail } }],
               items: [{ name: String(args?.productTitle ?? "Item").slice(0, 127), quantity: "1", unit_amount: { currency_code: "USD", value } }],
-              amount: { breakdown: { item_total: { currency_code: "USD", value } } },
-            })) as { id?: string } | undefined;
-            if (created?.id) {
-              await tools["send_invoice"]?.execute?.({ invoice_id: created.id });
+            })) as { id?: string; href?: string } | string | undefined;
+            // Toolkit may return {id} or a link object — id lives in the href path.
+            const parsed = typeof created === "string" ? (() => { try { return JSON.parse(created); } catch { return null; } })() : created;
+            const invoiceId = (parsed as { id?: string; href?: string } | null)?.id ?? (parsed as { href?: string } | null)?.href?.split("/").pop();
+            if (invoiceId) {
+              await tools["send_invoice"]?.execute?.({ invoice_id: invoiceId });
               await db.update(merchantSales).set({ status: "invoiced" }).where(eq(merchantSales.id, saleId));
               invoiced = true;
             }

@@ -263,6 +263,52 @@ export function ensureDb(): Promise<void> {
           message text,
           created_at timestamptz default now()
         )`);
+      await db.execute(sql`
+        create table if not exists deal_threads (
+          id text primary key,
+          buyer_user_id text not null,
+          seller_user_id text not null,
+          buyer_label text,
+          subject text,
+          sale_id text,
+          last_msg_at timestamptz default now(),
+          buyer_unread integer not null default 0,
+          seller_unread integer not null default 0,
+          created_at timestamptz default now()
+        )`);
+      await db.execute(sql`
+        create table if not exists deal_messages (
+          id text primary key,
+          thread_id text not null,
+          sender_user_id text not null,
+          sender_role text not null,
+          body text not null,
+          created_at timestamptz default now()
+        )`);
+      await db.execute(sql`
+        create table if not exists direct_offers (
+          id text primary key,
+          seller_user_id text not null,
+          buyer_user_id text not null,
+          product_id text not null,
+          product_title text not null,
+          price_cents integer not null,
+          list_cents integer,
+          note text,
+          status text not null default 'open',
+          expires_at timestamptz,
+          created_at timestamptz default now()
+        )`);
+      await db.execute(sql`
+        create table if not exists seller_reviews (
+          id text primary key,
+          seller_user_id text not null,
+          buyer_user_id text not null,
+          order_id text,
+          rating integer not null,
+          comment text,
+          created_at timestamptz default now()
+        )`);
       await seedAdmin(db);
       await backfillSpaces(db);
       await seedDemoSeller(db);
