@@ -287,7 +287,7 @@ export function SellerDashboard({ view }: { view: SellerView }) {
                   </div>
                   <div className="mt-3 flex h-24 items-end gap-1.5">
                     {days.map((d) => (
-                      <div key={d.key} className="flex flex-1 flex-col items-center gap-1">
+                      <div key={d.key} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
                         <div
                           className="w-full rounded-sm bg-accent/70"
                           style={{ height: `${Math.max(3, (d.cents / max) * 88)}%` }}

@@ -84,9 +84,12 @@ export async function GET() {
   }
 
   // Conversion — of the threads the agent touched, how many closed.
+  const closedKeys = new Set(
+    events.filter((e) => e.kind === "accept").map((e) => `${e.buyerLabel ?? "?"}|${e.productTitle}`),
+  );
   const threadCount = seen.size;
   const conversionPct =
-    threadCount > 0 ? Math.round((sales.length / threadCount) * 100) : 0;
+    threadCount > 0 ? Math.round((closedKeys.size / threadCount) * 100) : 0;
   const avgSaleCents = sales.length
     ? Math.round(sales.reduce((s, x) => s + x.agreedCents, 0) / sales.length)
     : 0;

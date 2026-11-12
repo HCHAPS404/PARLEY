@@ -229,7 +229,7 @@ export function Dashboard() {
               {days.map((d, i) => (
                 <div
                   key={i}
-                  className="group relative flex-1"
+                  className="group relative flex h-full flex-1 items-end"
                   title={`${d.label}: ${usd(d.total)}`}
                 >
                   <div
