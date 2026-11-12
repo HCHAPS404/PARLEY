@@ -4,7 +4,8 @@ Recording-ready. Every beat maps to **staged prod data** — nothing is improvis
 
 ## 0. Setup checklist (5 min before recording)
 
-- [ ] `https://parley-wt1k.onrender.com` — open once to warm the cold start
+- [ ] `https://parley-wt1k.onrender.com` — open once to warm the cold start (Render free tier sleeps; an UptimeRobot ping every 5 min keeps it hot during judging)
+- [ ] `/api/health` → `configured.mcp: true`? If `MCP_SECRET` is set in Render, negotiations cross the real HTTP A2A boundary — worth one line of narration
 - [ ] **Browser A**: logged in as `buyer1` — the buyer journey
 - [ ] **Browser B (incognito)**: logged in as `seller1` — the ParcelPro Supply store
 - [ ] Both accounts: password `ParleyJudgeDemo26`, space **"Personal"**
@@ -62,11 +63,13 @@ Browser B, `/seller`:
 11. **Customers** → buyer1: 4 deals, $113.30 lifetime — plus `HELL` with 3 more (~$280). **Send offer** → that's `off_b1`'s flow (already sitting in the buyer's Inbox — show it).
 12. **Messages** → `thr_b1`: unread badge → *"Double-tape the bottom seam"* → reply live → lands in Browser A.
 13. **AI Assistant → "Try your agent"** → pick a product, offer `$30` → the agent counters at the **exact floor**. *"The margin floor is law — the agent can't break it."*
+14. **Public storefront** → open `/s/parcelpro-supply` in a logged-out tab — catalog, promo price, reviews, vendor score. *"Every seller gets a public storefront — no login needed to look."*
 
 ## 6. Proof it's real — 15s
 
-14. GitHub → `npm test` — **37 invariant tests**: policy caps, merchant floor, offer floor, claim states, i18n parity.
-15. README security model — invariants enforced in code, not in prompts.
+15. GitHub → `npm test` — **37 invariant tests**: policy caps, merchant floor, offer floor, claim states, i18n parity.
+16. `/api/health` → `configured.mcp` — when the secret is wired, the A2A claim is verifiable in one JSON field.
+17. README security model — invariants enforced in code, not in prompts.
 
 ## Closing line
 
@@ -74,7 +77,7 @@ Browser B, `/seller`:
 
 ## Landmines to avoid while recording
 
-- **Do not release `SEED-*` orders** — their PayPal ids are fixtures; capture would 404. Release only the order created live in beat 3.
+- **Release only the order created live in beat 3** — `SEED-*` orders are fixtures and now fail gracefully ("no live authorization"), but a clean demo releases the order you just bought.
 - **`off_b1` accept creates a real $24.20 escrow** — that's fine, it's the offer beat; but approve it only if you want a second live order.
 - Claims work on any order still holding funds (up to `delivered`) — but once `captured` the claim path is closed; run that beat before releasing if you want it.
 - Stay in space **"Personal"** on both accounts.

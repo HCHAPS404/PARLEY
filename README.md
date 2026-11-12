@@ -65,8 +65,14 @@ the order → **Confirm receipt** → Inbox → **release the payment**. Then re
 the thread — the whole deal lifecycle is logged there. Full walkthrough:
 [`docs/demo-script.md`](docs/demo-script.md).
 
-> Sandbox note: `SEED-*` rows are local fixtures — always release the order
-> you just bought, not a seeded one.
+**No-login preview:** the seller's public storefront lives at
+[`/s/parcelpro-supply`](https://parley-wt1k.onrender.com/s/parcelpro-supply) —
+catalog, promo pricing, buyer reviews, and vendor score. Every seller on
+Parley gets one.
+
+> Sandbox note: `SEED-*` rows are staged fixtures — the release flow answers
+> cleanly on them, but only an order actually bought and approved in-session
+> has a live PayPal authorization behind it.
 
 <img src="docs/parley-divider.svg" width="100%" alt="" />
 
@@ -141,6 +147,7 @@ is built so the model can *propose* and only *code* can move money:
 | **Two-sided marketplace** | Sellers deploy their own merchant agent — catalog, margin floor, negotiation style — and its deals land on their live feed, ledger, and lead radar. Buyer and seller agents meet over MCP/A2A; neither talks to the other's human. |
 | **The relationship outlives the deal** | A closed deal opens a buyer↔seller channel: the escrow timeline posts there as system events, plus live chat with unread badges. Sellers get a CRM (deals, lifetime spend, walked leads) and send targeted win-back offers that convert into new escrows; buyers leave post-delivery reviews that feed the seller's public vendor score. |
 | **Claims — the unhappy path, handled** | A buyer can flag a problem while funds are held: the seller is alerted, the escrow stays locked, and resolution happens in the channel. Confirming receipt of a disputed order is blocked in code. |
+| **Public storefronts** | Every seller gets `/s/<store>` — catalog (with live campaign pricing), buyer reviews, and vendor score, no login required. Buyers see advertised prices; the margin floor is never exposed. |
 | **Market intelligence, not just sourcing** | The agent reports on demand — catalog depth, price spread, 90-day price trajectories — and watches products *or whole queries* for better offers, landing deals in the Inbox with links to act. |
 | **Visual sourcing** | Attach a product photo — it's matched against the live catalog server-side and becomes sourcing context. The model never handles the raw bytes. |
 | **Formal paper trail** | A negotiated purchase can mint a real PayPal invoice (create → send) for the escrowed amount — procurement documentation, not just a charge. |
@@ -223,6 +230,7 @@ src/
 │   ├── pipeline/                 ← kanban board — orders grouped by escrow stage
 │   ├── inbox/                    ← approvals, deliveries, deals — actionable alerts
 │   ├── seller/                   ← merchant portal: catalog, agent feed, sales, leads
+│   ├── s/[name]/                 ← public storefront — catalog, reviews, vendor score (no login)
 │   ├── settings/                 ← profile, spaces, appearance, spend policy
 │   └── api/
 │       ├── chat/                 ← agent loop: streamText + tools

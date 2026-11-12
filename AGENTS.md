@@ -38,6 +38,7 @@ AI procurement agent for solopreneurs — finds real products (Channel3), negoti
 - `src/app/api/orders` — order claims (`report`/`resolve`) and `confirm_received` (buyer-side delivery — the sandbox-safe payoff path)
 - `src/app/api/reviews` — post-delivery ratings; seller derived server-side from the sale, never trusted from input
 - `src/app/api/mcp` — JSON-RPC merchant boundary (`MCP_SECRET`); without it `negotiate()` falls back to the same agent in-process
+- `src/app/s/[name]` — public storefront (no auth): catalog with campaign pricing, reviews, vendor score. Never exposes `floorRatioPct`
 
 ## Security invariants (do not break)
 

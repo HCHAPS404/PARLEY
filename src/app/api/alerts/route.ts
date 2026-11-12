@@ -52,6 +52,11 @@ export async function POST(req: Request) {
     if (user.role === "demo")
       return NextResponse.json({ error: "Demo accounts cannot release escrow" }, { status: 403 });
     const paypalOrderId = String(payload.paypalOrderId ?? "");
+    if (paypalOrderId.startsWith("SEED-"))
+      return NextResponse.json(
+        { error: "Demo fixture — there's no live PayPal authorization behind this order" },
+        { status: 400 },
+      );
     const [order] = await db
       .select()
       .from(ordersLocal)
@@ -59,7 +64,16 @@ export async function POST(req: Request) {
       .limit(1);
     if (!order?.authorizationId)
       return NextResponse.json({ error: "No authorization hold on this order" }, { status: 400 });
-    const cap = await captureAuthorization(order.authorizationId);
+    let captureError: string | null = null;
+    const cap = await captureAuthorization(order.authorizationId).catch((e: unknown) => {
+      captureError = e instanceof Error ? e.message : "PayPal capture failed";
+      return null;
+    });
+    if (!cap)
+      return NextResponse.json(
+        { error: captureError ?? "PayPal capture failed" },
+        { status: 502 },
+      );
     await db
       .update(ordersLocal)
       .set({ status: "captured", capturedCents: order.amountCents, updatedAt: new Date() })

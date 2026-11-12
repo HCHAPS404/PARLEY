@@ -561,38 +561,50 @@ export function agentTools(ctx: AgentCtx) {
           )
           .limit(1);
         if (!row) return { error: "Order not found" };
+        if (paypalOrderId.startsWith("SEED-"))
+          return {
+            error:
+              "Demo fixture — staged order with no live PayPal authorization behind it. " +
+              "Release only applies to an order actually purchased and approved through PayPal.",
+          };
 
-        let authId = row.authorizationId;
-        if (!authId) {
-          const order = await getOrder(paypalOrderId);
-          authId =
-            order.purchase_units?.[0]?.payments?.authorizations?.[0]?.id ?? null;
+        try {
+          let authId = row.authorizationId;
           if (!authId) {
-            return {
-              error: `No authorization on order (status: ${order.status}) — buyer may not have approved it yet`,
-            };
+            const order = await getOrder(paypalOrderId);
+            authId =
+              order.purchase_units?.[0]?.payments?.authorizations?.[0]?.id ?? null;
+            if (!authId) {
+              return {
+                error: `No authorization on order (status: ${order.status}) — buyer may not have approved it yet`,
+              };
+            }
           }
+          const capture = await captureAuthorization(authId);
+          await db
+            .update(ordersLocal)
+            .set({ status: "captured", deliveredAt: new Date(), updatedAt: new Date() })
+            .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
+          if (row.vendor) await bumpVendorScore(db, row.vendor, "on_time");
+          await audit({
+            actor: "system",
+            action: "escrow_captured",
+            userId: ctx.userId, spaceId: ctx.spaceId,
+            input: { paypalOrderId, authId },
+            output: capture,
+            rationale: "Delivery confirmed — hold released to seller",
+          });
+          return {
+            status: capture.status,
+            captureId: capture.id,
+            releasedUsd: usd(row.amountCents),
+            note: "Escrow released — seller paid on confirmed delivery.",
+          };
+        } catch (e) {
+          return {
+            error: `PayPal request failed — ${e instanceof Error ? e.message.slice(0, 160) : "unknown error"}`,
+          };
         }
-        const capture = await captureAuthorization(authId);
-        await db
-          .update(ordersLocal)
-          .set({ status: "captured", deliveredAt: new Date(), updatedAt: new Date() })
-          .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
-        if (row.vendor) await bumpVendorScore(db, row.vendor, "on_time");
-        await audit({
-          actor: "system",
-          action: "escrow_captured",
-          userId: ctx.userId, spaceId: ctx.spaceId,
-          input: { paypalOrderId, authId },
-          output: capture,
-          rationale: "Delivery confirmed — hold released to seller",
-        });
-        return {
-          status: capture.status,
-          captureId: capture.id,
-          releasedUsd: usd(row.amountCents),
-          note: "Escrow released — seller paid on confirmed delivery.",
-        };
       },
     }),
 
@@ -622,43 +634,55 @@ export function agentTools(ctx: AgentCtx) {
         if (row.status === "captured")
           return { error: "Order already captured — funds already released to the seller" };
         if (row.status === "voided") return { status: "voided", note: "Already voided." };
+        if (paypalOrderId.startsWith("SEED-"))
+          return {
+            error:
+              "Demo fixture — staged order with no live PayPal authorization behind it. " +
+              "Void only applies to an order actually purchased and approved through PayPal.",
+          };
 
-        let authId = row.authorizationId;
-        if (!authId) {
-          const order = await getOrder(paypalOrderId);
-          authId =
-            order.purchase_units?.[0]?.payments?.authorizations?.[0]?.id ?? null;
+        try {
+          let authId = row.authorizationId;
           if (!authId) {
-            // No authorization to void — just close the local order.
-            await db
-              .update(ordersLocal)
-              .set({ status: "voided", updatedAt: new Date() })
-              .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
-            return {
-              status: "voided",
-              note: "No authorization existed — nothing held, order closed locally.",
-            };
+            const order = await getOrder(paypalOrderId);
+            authId =
+              order.purchase_units?.[0]?.payments?.authorizations?.[0]?.id ?? null;
+            if (!authId) {
+              // No authorization to void — just close the local order.
+              await db
+                .update(ordersLocal)
+                .set({ status: "voided", updatedAt: new Date() })
+                .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
+              return {
+                status: "voided",
+                note: "No authorization existed — nothing held, order closed locally.",
+              };
+            }
           }
+          const voided = await voidAuthorization(authId);
+          await db
+            .update(ordersLocal)
+            .set({ status: "voided", updatedAt: new Date() })
+            .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
+          if (row.vendor) await bumpVendorScore(db, row.vendor, "dispute");
+          await audit({
+            actor: "system",
+            action: "escrow_voided",
+            userId: ctx.userId, spaceId: ctx.spaceId,
+            input: { paypalOrderId, authId, reason },
+            output: voided,
+            rationale: reason ?? "Delivery failed or deal abandoned — hold returned to buyer",
+          });
+          return {
+            status: voided.status,
+            releasedUsd: usd(row.amountCents),
+            note: "Escrow voided — authorized funds released back to the buyer.",
+          };
+        } catch (e) {
+          return {
+            error: `PayPal request failed — ${e instanceof Error ? e.message.slice(0, 160) : "unknown error"}`,
+          };
         }
-        const voided = await voidAuthorization(authId);
-        await db
-          .update(ordersLocal)
-          .set({ status: "voided", updatedAt: new Date() })
-          .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
-        if (row.vendor) await bumpVendorScore(db, row.vendor, "dispute");
-        await audit({
-          actor: "system",
-          action: "escrow_voided",
-          userId: ctx.userId, spaceId: ctx.spaceId,
-          input: { paypalOrderId, authId, reason },
-          output: voided,
-          rationale: reason ?? "Delivery failed or deal abandoned — hold returned to buyer",
-        });
-        return {
-          status: voided.status,
-          releasedUsd: usd(row.amountCents),
-          note: "Escrow voided — authorized funds released back to the buyer.",
-        };
       },
     }),
 
@@ -689,12 +713,12 @@ export function agentTools(ctx: AgentCtx) {
         if (!row) return { error: "Order not found" };
         if (["captured", "voided", "cancelled", "failed"].includes(row.status))
           return { error: `Order already ${row.status} — nothing to release` };
-        let authId = row.authorizationId;
-        if (!authId) {
-          const order = await getOrder(paypalOrderId);
-          authId = order.purchase_units?.[0]?.payments?.authorizations?.[0]?.id ?? null;
-          if (!authId) return { error: "No authorization hold on this order" };
-        }
+        if (paypalOrderId.startsWith("SEED-"))
+          return {
+            error:
+              "Demo fixture — staged order with no live PayPal authorization behind it. " +
+              "Release only applies to an order actually purchased and approved through PayPal.",
+          };
         const held = row.amountCents - (row.capturedCents ?? 0);
         const releaseCents = amountUsd
           ? toCents(amountUsd)
@@ -702,35 +726,47 @@ export function agentTools(ctx: AgentCtx) {
         if (releaseCents <= 0 || releaseCents > held)
           return { error: `Release must be between $0.01 and the remaining hold $${(held / 100).toFixed(2)}` };
         const isFinal = finalCapture || releaseCents >= held;
-        const cap = await captureAuthorization(authId, {
-          amountCents: releaseCents,
-          currency: row.currency,
-          finalCapture: isFinal,
-        });
-        const newCaptured = (row.capturedCents ?? 0) + releaseCents;
-        await db
-          .update(ordersLocal)
-          .set({
-            capturedCents: newCaptured,
-            status: isFinal ? "captured" : row.status,
-            updatedAt: new Date(),
-          })
-          .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
-        if (isFinal && row.vendor) await bumpVendorScore(db, row.vendor, "on_time");
-        await audit({
-          actor: "system",
-          action: "escrow_partial_release",
-          userId: ctx.userId, spaceId: ctx.spaceId,
-          input: { paypalOrderId, releaseCents, finalCapture: isFinal },
-          output: cap,
-          rationale: "Partial delivery — release proportional to what arrived",
-        });
-        return {
-          releasedUsd: usd(releaseCents),
-          remainingHeldUsd: usd(row.amountCents - newCaptured),
-          status: isFinal ? "captured" : "partial",
-          captureId: cap.id,
-        };
+        try {
+          let authId = row.authorizationId;
+          if (!authId) {
+            const order = await getOrder(paypalOrderId);
+            authId = order.purchase_units?.[0]?.payments?.authorizations?.[0]?.id ?? null;
+            if (!authId) return { error: "No authorization hold on this order" };
+          }
+          const cap = await captureAuthorization(authId, {
+            amountCents: releaseCents,
+            currency: row.currency,
+            finalCapture: isFinal,
+          });
+          const newCaptured = (row.capturedCents ?? 0) + releaseCents;
+          await db
+            .update(ordersLocal)
+            .set({
+              capturedCents: newCaptured,
+              status: isFinal ? "captured" : row.status,
+              updatedAt: new Date(),
+            })
+            .where(eq(ordersLocal.paypalOrderId, paypalOrderId));
+          if (isFinal && row.vendor) await bumpVendorScore(db, row.vendor, "on_time");
+          await audit({
+            actor: "system",
+            action: "escrow_partial_release",
+            userId: ctx.userId, spaceId: ctx.spaceId,
+            input: { paypalOrderId, releaseCents, finalCapture: isFinal },
+            output: cap,
+            rationale: "Partial delivery — release proportional to what arrived",
+          });
+          return {
+            releasedUsd: usd(releaseCents),
+            remainingHeldUsd: usd(row.amountCents - newCaptured),
+            status: isFinal ? "captured" : "partial",
+            captureId: cap.id,
+          };
+        } catch (e) {
+          return {
+            error: `PayPal request failed — ${e instanceof Error ? e.message.slice(0, 160) : "unknown error"}`,
+          };
+        }
       },
     }),
 

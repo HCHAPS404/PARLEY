@@ -18,6 +18,9 @@ export async function GET() {
       paypal: Boolean(env.paypalClientId && env.paypalClientSecret),
       llm: Boolean(env.googleApiKey || env.metaApiKey || env.modalApiKey),
       channel3: Boolean(env.channel3ApiKey),
+      // The A2A claim is verifiable — the merchant agent is only reachable
+      // over the HTTP JSON-RPC boundary when the secret is wired.
+      mcp: Boolean(env.mcpSecret),
     },
   });
 }

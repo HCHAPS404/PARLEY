@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, MessageSquare, Star, Store, Tag, X } from "lucide-react";
+import { Check, ExternalLink, MessageSquare, Star, Store, Tag, X } from "lucide-react";
 import { usePrefs } from "./preferences";
 
 interface Offer {
@@ -168,12 +168,20 @@ export function MySellers() {
                       {s.lastAt && ` · ${new Date(s.lastAt).toLocaleDateString()}`}
                     </div>
                   </div>
-                  <Link
-                    href="/messages"
-                    className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-[11px] font-medium text-ink-soft hover:text-ink"
-                  >
-                    <MessageSquare className="h-3 w-3" /> {t("cust.message")}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/s/${s.displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`}
+                      className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-[11px] font-medium text-ink-soft hover:text-ink"
+                    >
+                      <ExternalLink className="h-3 w-3" /> {t("ms.store")}
+                    </Link>
+                    <Link
+                      href="/messages"
+                      className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-[11px] font-medium text-ink-soft hover:text-ink"
+                    >
+                      <MessageSquare className="h-3 w-3" /> {t("cust.message")}
+                    </Link>
+                  </div>
                 </div>
                 {s.myRatings.length > 0 && (
                   <div className="mt-2 flex items-center gap-1">
