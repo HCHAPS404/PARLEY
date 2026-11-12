@@ -52,6 +52,7 @@ const BUYER_STEPS: Step[] = [
 
 const SELLER_STEPS: Step[] = [
   { icon: Zap, title: "demo.s1t", body: "demo.s1d", img: "/demo/seller-home.jpg", alt: "Live feed" },
+  { icon: PackageCheck, title: "demo.sit", body: "demo.sid", img: "/demo/seller-inventory-edit.jpg", alt: "Product editor" },
   { icon: Truck, title: "demo.s2t", body: "demo.s2d", img: "/demo/seller-orders.jpg", alt: "Seller orders" },
   { icon: Send, title: "demo.s3t", body: "demo.s3d", img: "/demo/seller-customers.jpg", alt: "Customers CRM" },
   { icon: MessagesSquare, title: "demo.s4t", body: "demo.s4d", img: "/demo/seller-messages.jpg", alt: "Seller thread" },
