@@ -503,6 +503,7 @@ export function agentTools(ctx: AgentCtx) {
           quantity,
           agreedPriceCents: negotiated ? unitCents : null,
           negotiated,
+          negotiationId: negotiated ? negotiationId : null,
           productSnapshot: product,
         });
         // Buying from a Parley seller → link the escrow to their sale ledger.

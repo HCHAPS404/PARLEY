@@ -7,6 +7,7 @@ import { paypalTools } from "@/lib/paypal-toolkit";
 import { searchProducts, priceHistory } from "@/lib/channel3";
 import { checkPolicy } from "@/lib/policy";
 import { audit } from "@/lib/audit";
+import { partiesForOrder, postSystemMessage } from "@/lib/relationships";
 import { env } from "@/lib/env";
 
 export const maxDuration = 60;
@@ -116,6 +117,15 @@ export async function GET(req: Request) {
               .update(ordersLocal)
               .set({ status: "delivered", deliveredAt: new Date(), trackingStatus: st, updatedAt: new Date() })
               .where(eq(ordersLocal.paypalOrderId, row.paypalOrderId));
+            try {
+              const parties = await partiesForOrder(row.paypalOrderId);
+              if (parties) {
+                await postSystemMessage({
+                  ...parties,
+                  body: `Delivered — the carrier confirms "${parties.title}" arrived. The buyer can now release the escrow.`,
+                });
+              }
+            } catch { /* the delivery stands */ }
             if (
               await alertOnce(db, "delivered", {
                 paypalOrderId: row.paypalOrderId,

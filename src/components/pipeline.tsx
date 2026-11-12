@@ -26,7 +26,15 @@ interface Order {
   quantity: number;
   agreedPriceCents: number | null;
   negotiated: boolean;
+  negotiationId: string | null;
+  disputeNote: string | null;
+  disputedAt: string | null;
   reorderRuleId: string | null;
+}
+
+interface NegTurn {
+  speaker: "buyer" | "merchant";
+  text: string;
 }
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
@@ -166,6 +174,37 @@ function OrderDrawer({
   onClose: () => void;
 }) {
   const { t } = usePrefs();
+  const [neg, setNeg] = useState<{ transcript: NegTurn[]; listPriceCents: number; agreedCents: number | null } | null>(null);
+  const [issue, setIssue] = useState("");
+  const [issueBusy, setIssueBusy] = useState(false);
+  const [disputed, setDisputed] = useState(o.disputeNote);
+
+  useEffect(() => {
+    if (!o.negotiationId) return;
+    fetch(`/api/negotiations?id=${encodeURIComponent(o.negotiationId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setNeg(d))
+      .catch(() => {});
+  }, [o.negotiationId]);
+
+  const report = async () => {
+    const note = issue.trim();
+    if (!note || issueBusy) return;
+    setIssueBusy(true);
+    try {
+      const r = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "report", orderId: o.id, note }),
+      });
+      if (r.ok) {
+        setDisputed(note);
+        setIssue("");
+      }
+    } finally {
+      setIssueBusy(false);
+    }
+  };
 
   const steps: { key: string; done: boolean; when: string | null }[] = [
     { key: "created", done: true, when: o.createdAt },
@@ -289,6 +328,73 @@ function OrderDrawer({
               </div>
             )}
           </dl>
+
+          {/* Open claim banner */}
+          {disputed && (
+            <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-warn">
+                {t("pipe.d.disputeOpen")}
+              </div>
+              <p className="mt-1 text-[12px] text-ink">{disputed}</p>
+              <p className="mt-1 text-[11px] text-ink-soft">{t("pipe.d.disputeSub")}</p>
+            </div>
+          )}
+
+          {/* Agent-to-agent replay — watch the negotiation that priced this. */}
+          {neg && neg.transcript.length > 0 && (
+            <section className="space-y-2 border-t border-line pt-4">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+                {t("pipe.d.replay")}
+              </h3>
+              <div className="space-y-1.5">
+                {neg.transcript.map((turn, i) => (
+                  <div key={i} className={`flex ${turn.speaker === "buyer" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[85%] rounded-xl px-3 py-1.5 text-[12px] ${
+                        turn.speaker === "buyer"
+                          ? "rounded-br-sm bg-accent text-paper"
+                          : "rounded-bl-sm border border-line bg-paper"
+                      }`}
+                    >
+                      <div className={`text-[9px] font-semibold uppercase tracking-wide ${turn.speaker === "buyer" ? "text-paper/70" : "text-ink-soft"}`}>
+                        {turn.speaker === "buyer" ? t("pipe.d.yourAgent") : t("pipe.d.theirAgent")}
+                      </div>
+                      {turn.text}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {neg.agreedCents != null && (
+                <div className="text-[11px] font-medium text-ok">
+                  {t("pipe.d.agreedAt", { n: usd(neg.agreedCents) })}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Report a problem — claims only make sense while money is held. */}
+          {!disputed && o.stage >= 1 && o.stage < 4 && (
+            <section className="space-y-2 border-t border-line pt-4">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+                {t("pipe.d.problem")}
+              </h3>
+              <div className="flex gap-2">
+                <input
+                  value={issue}
+                  onChange={(e) => setIssue(e.target.value)}
+                  placeholder={t("pipe.d.problemPh")}
+                  className="min-w-0 flex-1 rounded-md border border-line bg-paper px-2.5 py-1.5 text-[12px] outline-none focus:border-warn"
+                />
+                <button
+                  onClick={report}
+                  disabled={!issue.trim() || issueBusy}
+                  className="rounded-md border border-warn/50 px-2.5 py-1.5 text-[11px] font-medium text-warn transition-colors hover:bg-warn/10 disabled:opacity-50"
+                >
+                  {issueBusy ? "…" : t("pipe.d.report")}
+                </button>
+              </div>
+            </section>
+          )}
         </div>
       </aside>
     </>

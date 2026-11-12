@@ -4,6 +4,7 @@ import { authorizeOrder } from "@/lib/paypal";
 import { getDb, ensureDb } from "@/lib/db";
 import { ordersLocal } from "@/lib/db/schema";
 import { audit } from "@/lib/audit";
+import { partiesForOrder, postSystemMessage } from "@/lib/relationships";
 import { getSessionUser } from "@/lib/auth";
 
 /**
@@ -29,6 +30,7 @@ export async function GET(req: Request) {
       userId: ordersLocal.userId,
       status: ordersLocal.status,
       authorizationId: ordersLocal.authorizationId,
+      amountCents: ordersLocal.amountCents,
     })
     .from(ordersLocal)
     .where(eq(ordersLocal.paypalOrderId, orderId))
@@ -69,6 +71,16 @@ export async function GET(req: Request) {
       output: { status: auth.status },
       rationale: "Buyer approved — funds held pending delivery confirmation",
     });
+    // The deal channel gets the operational timeline, not just chat.
+    try {
+      const parties = await partiesForOrder(orderId);
+      if (parties) {
+        await postSystemMessage({
+          ...parties,
+          body: `Payment authorized — $${((owner.amountCents ?? 0) / 100).toFixed(2)} is held in escrow and only releases on confirmed delivery.`,
+        });
+      }
+    } catch { /* the authorization stands */ }
     return redirect(`authorized=${orderId}`);
   } catch (e) {
     console.error("[paypal/return]", e);

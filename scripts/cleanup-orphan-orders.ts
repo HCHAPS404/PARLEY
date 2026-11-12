@@ -25,12 +25,15 @@ async function main() {
     .from(merchantSales)
     .where(inArray(merchantSales.buyerOrderId, ids));
 
-  const orders = await db
+  const found = await db
+    .select({ id: ordersLocal.paypalOrderId })
+    .from(ordersLocal)
+    .where(inArray(ordersLocal.paypalOrderId, ids));
+  await db
     .update(ordersLocal)
     .set({ status: "voided" })
-    .where(inArray(ordersLocal.paypalOrderId, ids))
-    .returning({ id: ordersLocal.paypalOrderId });
-  console.log(`voided ${orders.length} order(s)`);
+    .where(inArray(ordersLocal.paypalOrderId, ids));
+  console.log(`voided ${found.length} order(s)`);
 
   if (sales.length) {
     await db.delete(merchantSales).where(inArray(merchantSales.id, sales.map((s) => s.id)));

@@ -57,6 +57,9 @@ export async function GET() {
         agreedPriceCents: o.agreedPriceCents,
         negotiated: o.negotiated,
         reorderRuleId: o.reorderRuleId,
+        negotiationId: o.negotiationId,
+        disputeNote: o.disputeNote,
+        disputedAt: o.disputedAt?.toISOString() ?? null,
       };
     }),
   });

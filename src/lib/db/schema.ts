@@ -113,6 +113,9 @@ export const ordersLocal = pgTable("orders_local", {
   carrier: text("carrier"),
   trackingStatus: text("tracking_status"), // SHIPPED|IN_TRANSIT|DELIVERED|...
   invoiceId: text("invoice_id"), // PayPal invoice issued by the merchant
+  negotiationId: text("negotiation_id"), // which agent negotiation priced it — replay lives there
+  disputeNote: text("dispute_note"), // buyer-reported problem; non-null while the claim is open
+  disputedAt: timestamp("disputed_at", { withTimezone: true }),
   reorderRuleId: text("reorder_rule_id"), // which rule created this order, if autonomous
   capturedCents: integer("captured_cents").notNull().default(0), // partial releases accumulate here
   amountCents: integer("amount_cents").notNull(),

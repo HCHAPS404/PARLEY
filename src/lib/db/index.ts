@@ -160,6 +160,9 @@ alter table orders_local add column if not exists tracking_status text;
 alter table orders_local add column if not exists invoice_id text;
 alter table orders_local add column if not exists reorder_rule_id text;
 alter table orders_local add column if not exists captured_cents integer not null default 0;
+alter table orders_local add column if not exists negotiation_id text;
+alter table orders_local add column if not exists dispute_note text;
+alter table orders_local add column if not exists disputed_at timestamptz;
 create table if not exists merchant_profiles (
   id text primary key,
   user_id text not null unique,

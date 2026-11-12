@@ -149,6 +149,18 @@ export function MessagesPanel({ persona }: { persona: "buyer" | "seller" }) {
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-4">
               {msgs.map((m) => {
+                if (m.senderRole === "system") {
+                  return (
+                    <div key={m.id} className="flex justify-center">
+                      <div className="max-w-[85%] rounded-full border border-line/70 bg-paper px-3.5 py-1.5 text-center text-[11px] text-ink-soft">
+                        {m.body}
+                        <span className="ml-1.5 text-[9px] text-ink-soft/60">
+                          {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
                 const mine = m.senderRole === myRole;
                 return (
                   <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>

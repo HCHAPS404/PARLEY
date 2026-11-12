@@ -61,6 +61,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [inboxCount, setInboxCount] = useState(0);
+  const [msgCount, setMsgCount] = useState(0);
   const [storePulse, setStorePulse] = useState<{
     profile: { displayName: string; floorRatioPct: number } | null;
     stats?: { pendingShipCount: number; lowStockCount: number };
@@ -72,6 +73,14 @@ export function AppShell({
       fetch("/api/alerts")
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => d && setInboxCount(d.alerts?.length ?? 0))
+        .catch(() => {});
+      fetch("/api/threads")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) =>
+          d && setMsgCount(
+            (d.threads as { unread?: number }[] ?? []).reduce((s, t) => s + (t.unread ?? 0), 0),
+          ),
+        )
         .catch(() => {});
       if (user.persona === "seller") {
         fetch("/api/seller")
@@ -135,6 +144,11 @@ export function AppShell({
                 {"ai" in item && item.ai && (
                   <span className="ml-auto rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent-strong">
                     AI
+                  </span>
+                )}
+                {key === "nav.messages" && msgCount > 0 && (
+                  <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-paper">
+                    {msgCount}
                   </span>
                 )}
                 {key === "nav.inbox" && inboxCount > 0 && (

@@ -25,6 +25,8 @@ const KIND_META: Record<string, { icon: typeof Bell; label: string; tone: string
   offer_received: { icon: Tag, label: "inbox.kind.offerReceived", tone: "text-accent" },
   offer_accepted: { icon: CheckCircle2, label: "inbox.kind.offerAccepted", tone: "text-ok" },
   offer_declined: { icon: XCircle, label: "inbox.kind.offerDeclined", tone: "text-danger" },
+  order_disputed: { icon: TriangleAlert, label: "inbox.kind.orderDisputed", tone: "text-warn" },
+  dispute_resolved: { icon: CheckCircle2, label: "inbox.kind.disputeResolved", tone: "text-ok" },
 };
 
 export function InboxPanel({ role }: { role: string }) {
@@ -248,7 +250,7 @@ export function InboxPanel({ role }: { role: string }) {
                   {busy === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><ExternalLink className="h-3.5 w-3.5" /> {t("inbox.approvePaypal")}</>}
                 </button>
               )}
-              {(a.kind === "reorder_ready" || a.kind === "delivery_overdue" || a.kind === "delivered" || a.kind === "sale_closed" || a.kind === "price_drop" || a.kind === "deal_found" || a.kind === "buyer_walked" || a.kind === "offer_accepted" || a.kind === "offer_declined" || a.kind === "offer_received") && (
+              {(a.kind === "reorder_ready" || a.kind === "delivery_overdue" || a.kind === "delivered" || a.kind === "sale_closed" || a.kind === "price_drop" || a.kind === "deal_found" || a.kind === "buyer_walked" || a.kind === "offer_accepted" || a.kind === "offer_declined" || a.kind === "offer_received" || a.kind === "order_disputed" || a.kind === "dispute_resolved") && (
                 <button
                   onClick={() => act(a.id, "dismiss")}
                   disabled={busy === a.id}

@@ -1,9 +1,11 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
-import { merchantProfiles, merchantSales, sellerCampaigns, sellerEvents, sellerProducts, sellerReviews } from "@/lib/db/schema";
+import { merchantProfiles, merchantSales, ordersLocal, sellerCampaigns, sellerEvents, sellerProducts, sellerReviews } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { buyerUserForLabel } from "@/lib/relationships";
+import { buyerUserForLabel, partiesForOrder, postSystemMessage } from "@/lib/relationships";
+import { merchantAgentRound } from "@/lib/agent/merchant";
+import { activeCampaignFor, promoPriceCents } from "@/lib/campaigns";
 import { audit } from "@/lib/audit";
 
 export const maxDuration = 30;
@@ -40,6 +42,19 @@ export async function GET() {
     .where(eq(merchantSales.sellerUserId, user.id))
     .orderBy(desc(merchantSales.createdAt))
     .limit(50);
+  // Claims — flag sales whose linked escrow order has an open dispute.
+  const orderIds = sales.map((s) => s.buyerOrderId).filter(Boolean) as string[];
+  const disputedRows = orderIds.length
+    ? await db
+        .select({ id: ordersLocal.paypalOrderId })
+        .from(ordersLocal)
+        .where(and(inArray(ordersLocal.paypalOrderId, orderIds), isNotNull(ordersLocal.disputedAt)))
+    : [];
+  const disputed = new Set(disputedRows.map((r) => r.id));
+  const salesOut = sales.map((s) => ({
+    ...s,
+    disputed: s.buyerOrderId ? disputed.has(s.buyerOrderId) : false,
+  }));
   const events = await db
     .select()
     .from(sellerEvents)
@@ -169,7 +184,7 @@ export async function GET() {
   return NextResponse.json({
     profile: profile ?? null,
     products,
-    sales,
+    sales: salesOut,
     events: events.slice(0, 30),
     leads,
     campaigns,
@@ -214,6 +229,8 @@ export async function POST(req: Request) {
     days?: number;
     campaignId?: string;
     image?: string;
+    offerUsd?: number;
+    round?: number;
   };
   await ensureDb();
   const db = getDb();
@@ -310,6 +327,41 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, imported: rows.length });
   }
 
+  if (body.action === "simulate") {
+    // Playground: the seller throws an offer at their own agent and watches it
+    // respond under their real floor/style/campaign — nothing is recorded.
+    const productId = String(body.productId ?? "");
+    const offerCents = Math.round(Number(body.offerUsd) * 100);
+    if (!productId || !Number.isInteger(offerCents) || offerCents <= 0)
+      return NextResponse.json({ error: "productId + positive offerUsd required" }, { status: 400 });
+    const [product] = await db
+      .select()
+      .from(sellerProducts)
+      .where(eq(sellerProducts.id, productId))
+      .limit(1);
+    if (!product || product.userId !== user.id)
+      return NextResponse.json({ error: "Product not in your catalog" }, { status: 404 });
+    const [profile] = await db
+      .select()
+      .from(merchantProfiles)
+      .where(eq(merchantProfiles.userId, user.id))
+      .limit(1);
+    const campaign = await activeCampaignFor(user.id, productId);
+    const resp = await merchantAgentRound({
+      productId,
+      productTitle: product.title,
+      listPriceCents: product.priceCents,
+      offerCents,
+      roundsUsed: Math.min(4, Math.max(1, Math.round(Number(body.round) || 1))),
+      floorRatioPct: profile?.floorRatioPct,
+      style: profile?.style,
+      sellerName: profile?.displayName,
+      promoCents: campaign ? promoPriceCents(product.priceCents, campaign.pctOff) : undefined,
+      stockUnits: product.stock,
+    });
+    return NextResponse.json({ ok: true, response: resp });
+  }
+
   if (body.action === "ship") {
     // Seller fulfills — tracking propagates to the buyer's escrow order,
     // whose watchdog then watches the carrier until DELIVERED.
@@ -334,6 +386,15 @@ export async function POST(req: Request) {
         update orders_local set tracking_number = ${trackingNumber}, carrier = ${carrier},
           tracking_status = 'SHIPPED', updated_at = now()
         where paypal_order_id = ${sale.buyerOrderId}`);
+      try {
+        const parties = await partiesForOrder(sale.buyerOrderId);
+        if (parties) {
+          await postSystemMessage({
+            ...parties,
+            body: `Shipped — ${carrier.replace(/_/g, " ")} tracking ${trackingNumber}. Funds stay in escrow until it arrives.`,
+          });
+        }
+      } catch { /* the shipment stands */ }
     }
     await audit({
       actor: "user", action: "seller_shipped",

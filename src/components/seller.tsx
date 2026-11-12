@@ -6,6 +6,7 @@ import { DefaultChatTransport } from "ai";
 import {
   ArrowUp,
   BadgeDollarSign,
+  FlaskConical,
   Handshake,
   ImagePlus,
   Loader2,
@@ -24,7 +25,7 @@ import Link from "next/link";
 
 interface Profile { id: string; displayName: string; floorRatioPct: number; style: string }
 interface Product { id: string; title: string; priceCents: number; stock: number; image: string | null }
-interface Sale { id: string; productTitle: string; agreedCents: number; listCents: number | null; buyerLabel: string | null; trackingNumber?: string | null; status: string; createdAt: string }
+interface Sale { id: string; productTitle: string; agreedCents: number; listCents: number | null; buyerLabel: string | null; buyerOrderId?: string | null; disputed?: boolean; trackingNumber?: string | null; status: string; createdAt: string }
 interface SellerEvent { id: string; productTitle: string; buyerLabel: string | null; kind: string; offerCents: number | null; counterCents: number | null; message: string | null; createdAt: string }
 interface Lead { buyerLabel: string | null; productTitle: string; kind: string; offerCents: number | null; counterCents: number | null; at: string }
 interface Campaign { id: string; name: string; pctOff: number; productId: string | null; endsAt: string | null; active: boolean }
@@ -125,6 +126,23 @@ export function SellerDashboard({ view }: { view: SellerView }) {
     }
     load();
     return d;
+  };
+
+  /** Order-level actions that live outside the seller ledger — claims. */
+  const postOrder = async (body: Record<string, unknown>) => {
+    setBusy(true);
+    const r = await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const d = (await r.json().catch(() => ({}))) as { error?: string };
+      setNotice(d.error ?? t("common.error"));
+      return;
+    }
+    load();
   };
 
   if (!data)
@@ -324,7 +342,12 @@ export function SellerDashboard({ view }: { view: SellerView }) {
         </div>
       )}
 
-      {view === "copilot" && <SellerCopilot onAction={load} />}
+      {view === "copilot" && (
+        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+          <SellerCopilot onAction={load} />
+          <NegotiationSim products={products} />
+        </div>
+      )}
 
       {view === "inventory" && (
         <div className="space-y-5">
@@ -677,6 +700,22 @@ export function SellerDashboard({ view }: { view: SellerView }) {
                           )}
                         </div>
                         <div className="text-[10px] uppercase tracking-wide text-ink-soft">{s.status}</div>
+                        {s.disputed && (
+                          <div className="mt-1 flex items-center justify-end gap-1.5">
+                            <span className="rounded-full bg-warn/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-warn">
+                              {t("sell.disputed")}
+                            </span>
+                            {s.buyerOrderId && (
+                              <button
+                                onClick={() => postOrder({ action: "resolve", orderId: s.buyerOrderId! })}
+                                disabled={busy}
+                                className="rounded-md border border-line px-2 py-0.5 text-[10px] font-medium hover:text-ink disabled:opacity-50"
+                              >
+                                {t("sell.resolve")}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     {(s.status === "agreed" || s.status === "invoiced") && (
@@ -779,6 +818,93 @@ export function SellerDashboard({ view }: { view: SellerView }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** "Try your agent" — the seller throws test offers at their own merchant
+ *  agent and watches it negotiate under their real floor, style and campaigns.
+ *  Nothing is recorded: pure rehearsal. */
+function NegotiationSim({ products }: { products: Product[] }) {
+  const { t } = usePrefs();
+  const [productId, setProductId] = useState("");
+  const [offer, setOffer] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [resp, setResp] = useState<{ action: string; priceCents?: number; message?: string } | null>(null);
+
+  const sim = async () => {
+    if (!productId || !offer || busy) return;
+    setBusy(true);
+    setResp(null);
+    try {
+      const r = await fetch("/api/seller", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "simulate", productId, offerUsd: Number(offer), round: 1 }),
+      });
+      const d = await r.json().catch(() => ({}));
+      setResp(r.ok ? d.response : { action: "error", message: d.error ?? "?" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const TONE: Record<string, string> = {
+    accept: "border-ok/40 bg-ok-soft text-ok",
+    counter: "border-accent/40 bg-accent-mist text-accent-strong",
+    reject: "border-line bg-paper text-ink-soft",
+    walk: "border-danger/40 bg-danger/10 text-danger",
+    error: "border-danger/40 bg-danger/10 text-danger",
+  };
+
+  return (
+    <div className="flex h-fit flex-col rounded-xl border border-line bg-card">
+      <div className="border-b border-line px-4 py-3">
+        <h3 className="flex items-center gap-2 font-display text-sm font-semibold">
+          <FlaskConical className="h-4 w-4 text-accent" /> {t("sell.sim.title")}
+        </h3>
+        <p className="text-[11px] text-ink-soft">{t("sell.sim.sub")}</p>
+      </div>
+      <div className="space-y-3 p-4">
+        <select
+          value={productId}
+          onChange={(e) => setProductId(e.target.value)}
+          className="w-full rounded-md border border-line bg-paper px-2.5 py-2 text-[12px] outline-none focus:border-accent"
+        >
+          <option value="">{t("sell.sim.pick")}</option>
+          {products.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.title} — {usd(p.priceCents)}
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <input
+            value={offer}
+            onChange={(e) => setOffer(e.target.value.replace(/[^0-9.]/g, ""))}
+            onKeyDown={(e) => e.key === "Enter" && sim()}
+            placeholder={t("sell.sim.offerPh")}
+            className="min-w-0 flex-1 rounded-md border border-line bg-paper px-2.5 py-2 text-[12px] outline-none focus:border-accent"
+          />
+          <button
+            onClick={sim}
+            disabled={!productId || !offer || busy}
+            className="rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-paper transition-colors hover:bg-accent-strong disabled:opacity-50"
+          >
+            {busy ? "…" : t("sell.sim.test")}
+          </button>
+        </div>
+        {resp && (
+          <div className={`rounded-lg border px-3 py-2.5 text-[12px] ${TONE[resp.action] ?? TONE.reject}`}>
+            <div className="flex items-center justify-between font-semibold uppercase tracking-wide text-[10px]">
+              <span>{resp.action}</span>
+              {resp.priceCents != null && <span>{usd(resp.priceCents)}</span>}
+            </div>
+            {resp.message && <p className="mt-1.5 text-ink">{resp.message}</p>}
+          </div>
+        )}
+        <p className="text-[10px] leading-relaxed text-ink-soft/70">{t("sell.sim.note")}</p>
+      </div>
     </div>
   );
 }

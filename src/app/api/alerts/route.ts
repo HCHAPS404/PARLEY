@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getActiveSpace } from "@/lib/spaces";
 import { captureAuthorization } from "@/lib/paypal";
 import { paypalTools } from "@/lib/paypal-toolkit";
+import { partiesForOrder, postSystemMessage } from "@/lib/relationships";
 import { audit } from "@/lib/audit";
 
 export const maxDuration = 60;
@@ -70,6 +71,15 @@ export async function POST(req: Request) {
       output: cap,
       rationale: "Delivery confirmed via approval inbox — hold released to seller",
     });
+    try {
+      const parties = await partiesForOrder(paypalOrderId);
+      if (parties) {
+        await postSystemMessage({
+          ...parties,
+          body: `Escrow released — $${((order.amountCents ?? 0) / 100).toFixed(2)} paid out to the seller. Deal complete.`,
+        });
+      }
+    } catch { /* the capture stands */ }
     await db.update(alerts).set({ status: "acted" }).where(eq(alerts.id, alertId));
     return NextResponse.json({ ok: true, status: "captured", captureId: cap.id });
   }

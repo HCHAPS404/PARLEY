@@ -10,6 +10,7 @@ import {
   dealThreads,
   merchantProfiles,
   merchantSales,
+  ordersLocal,
   sellerEvents,
   sellerReviews,
   users,
@@ -102,8 +103,11 @@ export async function ensureThread(input: {
 export async function postMessage(input: {
   threadId: string;
   senderUserId: string;
-  senderRole: "buyer" | "seller";
+  senderRole: "buyer" | "seller" | "system";
   body: string;
+  /** Which side's unread counter bumps — person messages bump the counterpart,
+   * system events choose explicitly. */
+  unreadFor?: "buyer" | "seller" | "none";
 }) {
   const db = getDb();
   const id = `msg_${crypto.randomUUID().slice(0, 8)}`;
@@ -114,16 +118,77 @@ export async function postMessage(input: {
     senderRole: input.senderRole,
     body: input.body.slice(0, 2000),
   });
+  const unreadFor =
+    input.unreadFor ??
+    (input.senderRole === "buyer" ? "seller" : input.senderRole === "seller" ? "buyer" : "none");
   await db
     .update(dealThreads)
     .set({
       lastMsgAt: new Date(),
-      ...(input.senderRole === "buyer"
+      ...(unreadFor === "seller"
         ? { sellerUnread: sql`${dealThreads.sellerUnread} + 1` }
-        : { buyerUnread: sql`${dealThreads.buyerUnread} + 1` }),
+        : unreadFor === "buyer"
+          ? { buyerUnread: sql`${dealThreads.buyerUnread} + 1` }
+          : {}),
     })
     .where(eq(dealThreads.id, input.threadId));
   return { id };
+}
+
+/**
+ * Lifecycle event into the buyer↔seller channel — "escrow funded", "shipped",
+ * "delivered", "captured", "problem reported". The channel becomes the shared
+ * operational timeline for the order, not just a chat.
+ */
+export async function postSystemMessage(input: {
+  sellerUserId: string;
+  buyerUserId: string;
+  body: string;
+  unreadFor?: "buyer" | "seller" | "none";
+  subject?: string | null;
+  saleId?: string | null;
+}) {
+  const thread = await ensureThread({
+    sellerUserId: input.sellerUserId,
+    buyerUserId: input.buyerUserId,
+    subject: input.subject,
+    saleId: input.saleId,
+  });
+  return postMessage({
+    threadId: thread.id,
+    senderUserId: input.sellerUserId,
+    senderRole: "system",
+    body: input.body,
+    unreadFor: input.unreadFor ?? "buyer",
+  });
+}
+
+/** Resolve the buyer↔seller pair behind a PayPal order — via the seller's
+ * ledger entry that links it back to a Parley buyer. */
+export async function partiesForOrder(paypalOrderId: string) {
+  const db = getDb();
+  const [sale] = await db
+    .select({
+      sellerUserId: merchantSales.sellerUserId,
+      saleId: merchantSales.id,
+      title: merchantSales.productTitle,
+    })
+    .from(merchantSales)
+    .where(eq(merchantSales.buyerOrderId, paypalOrderId))
+    .limit(1);
+  if (!sale?.sellerUserId) return null;
+  const [order] = await db
+    .select({ userId: ordersLocal.userId })
+    .from(ordersLocal)
+    .where(eq(ordersLocal.paypalOrderId, paypalOrderId))
+    .limit(1);
+  if (!order?.userId) return null;
+  return {
+    sellerUserId: sale.sellerUserId,
+    buyerUserId: order.userId,
+    saleId: sale.saleId,
+    title: sale.title,
+  };
 }
 
 /** How many past deals this buyer closed with this seller — loyalty context
