@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  findUserByEmail,
+  findUserByLogin,
   verifyPassword,
   createSession,
   newSessionToken,
@@ -13,7 +13,7 @@ import {
 import { audit } from "@/lib/audit";
 
 const body = z.object({
-  email: z.string().email(),
+  email: z.string().min(1), // identifier — email or username (judge accounts log in as "buyer1")
   password: z.string().min(1),
 });
 
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       { status: 429 },
     );
 
-  const user = await findUserByEmail(email);
+  const user = await findUserByLogin(email);
   if (!user || !verifyPassword(password, user.passwordHash)) {
     loginFailed(key);
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });

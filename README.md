@@ -52,6 +52,10 @@ goods arrive.
 
 **https://parley-wt1k.onrender.com** — two accounts, two sides of the same
 market. Password for both: **`ParleyJudgeDemo26`**
+(type `buyer1` / `seller1` straight into the login field — email not needed)
+
+**Guided tour:** [`/demo`](https://parley-wt1k.onrender.com/demo) — credentials
+plus a scroll-through walkthrough of both sides, screenshot by screenshot.
 
 | Login | Role | What you'll find |
 |---|---|---|

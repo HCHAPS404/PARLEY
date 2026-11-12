@@ -120,11 +120,11 @@ export default function LoginPage() {
           <label className="mb-3 block text-[12px] font-medium text-ink-soft">
             {t("login.email")}
             <input
-              type="email"
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
               className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2.5 text-[14px] text-ink outline-none focus:border-accent"
               placeholder="you@example.com"
             />
@@ -200,6 +200,11 @@ export default function LoginPage() {
           <ShieldCheck className="h-3.5 w-3.5 text-accent" />
           {t("sidebar.escrow")} · {t("sidebar.audit").toLowerCase()}
         </div>
+        <p className="mt-3 text-center text-[12px] text-ink-soft">
+          <Link href="/demo" className="font-medium text-accent hover:underline">
+            {t("login.judgeLink")}
+          </Link>
+        </p>
       </div>
     </div>
   );

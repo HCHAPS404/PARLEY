@@ -122,6 +122,19 @@ export async function findUserByEmail(email: string) {
   return rows[0] ?? null;
 }
 
+/** Login identifier — email if it looks like one, otherwise the username. */
+export async function findUserByLogin(identifier: string) {
+  const v = identifier.trim().toLowerCase();
+  if (v.includes("@")) return findUserByEmail(v);
+  await ensureDb();
+  const rows = await getDb()
+    .select()
+    .from(users)
+    .where(eq(users.username, v))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function createUser(input: {
   username: string;
   email: string;

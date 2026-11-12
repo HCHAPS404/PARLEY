@@ -79,6 +79,9 @@ export function Landing({ authed }: { authed: boolean }) {
             <a href="#security" className="transition-colors hover:text-white">
               {t("land.nav.security")}
             </a>
+            <Link href="/demo" className="flex items-center gap-1 font-medium text-[#2dd4bf] transition-colors hover:text-white">
+              {t("land.nav.demo")}
+            </Link>
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <div className={`hidden rounded-md border ${LINE} p-0.5 text-[10px] font-medium sm:flex`}>
