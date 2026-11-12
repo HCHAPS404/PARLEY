@@ -403,7 +403,7 @@ export function Dashboard() {
         {/* Orders table */}
         <section className="rounded-xl border border-line bg-card p-4">
           <h2 className="text-[13px] font-semibold">{t("dash.orders.title")}</h2>
-          <div className="mt-3 h-80">
+          <div className={`mt-3 ${orders.length > 8 ? "h-80" : ""}`}>
             <DataGrid
               rowData={orders}
               columnDefs={[
@@ -414,8 +414,10 @@ export function Dashboard() {
                   cellRenderer: (p: { value: string }) => {
                     const meta = STATUS[p.value] ?? FALLBACK;
                     return (
-                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${meta.pill}`}>
-                        {meta.label}
+                      <span className="flex h-full items-center">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0 text-[10px] font-medium leading-5 ${meta.pill}`}>
+                          {meta.label}
+                        </span>
                       </span>
                     );
                   },
@@ -454,6 +456,7 @@ export function Dashboard() {
                 },
               ]}
               defaultColDef={{ sortable: true, resizable: true, filter: true }}
+              domLayout={orders.length <= 8 ? "autoHeight" : "normal"}
               animateRows
             />
           </div>
