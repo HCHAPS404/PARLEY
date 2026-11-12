@@ -123,7 +123,11 @@ export function AppShell({
             a seller's store is global, so the switcher stays hidden. */}
         {user.persona !== "seller" && <SpaceSwitcher />}
 
-        <nav className="flex flex-col gap-1 p-3 text-sm">
+        {/* Scrollable middle — nav + store pulse take remaining space and
+            scroll internally on short windows, so the footer (user card,
+            sign out) never gets clipped below the fold. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <nav className="flex flex-col gap-1 p-3 text-sm">
           {(user.persona === "seller" ? NAV_SELLER : NAV_BUYER).map(({ href, key, icon: Icon, ...item }) => {
             const active =
               "exact" in item && item.exact
@@ -159,11 +163,11 @@ export function AppShell({
               </Link>
             );
           })}
-        </nav>
+          </nav>
 
         {/* Store pulse — keeps the seller sidebar alive between nav and footer */}
         {user.persona === "seller" && storePulse?.profile && (
-          <div className="mx-3 mt-2 rounded-xl border border-line bg-paper p-3">
+          <div className="mx-3 mb-3 mt-2 rounded-xl border border-line bg-paper p-3">
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
               <span className="relative flex h-2 w-2">
                 <span className="absolute h-full w-full animate-ping rounded-full bg-ok/60" />
@@ -199,6 +203,7 @@ export function AppShell({
             </div>
           </div>
         )}
+        </div>
 
         <div className="mt-auto space-y-3 border-t border-line p-4">
           <div className="space-y-2 text-[11px] text-ink-soft">
