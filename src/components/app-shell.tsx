@@ -282,7 +282,41 @@ export function AppShell({
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      <main className="flex min-w-0 flex-1 flex-col pb-14 md:pb-0">{children}</main>
+
+      {/* Mobile bottom nav — the sidebar is desktop-only, so small screens
+          get the same destinations as a fixed icon bar. */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-line bg-card/95 backdrop-blur md:hidden">
+        {(user.persona === "seller" ? NAV_SELLER : NAV_BUYER).map(({ href, key, icon: Icon, ...item }) => {
+          const active =
+            "exact" in item && item.exact
+              ? pathname === href
+              : pathname.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-label={t(key)}
+              className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[9px] font-medium transition-colors ${
+                active ? "text-accent-strong" : "text-ink-soft"
+              }`}
+            >
+              <Icon className="h-4.5 w-4.5" />
+              <span className="max-w-full truncate px-0.5">{t(key)}</span>
+              {key === "nav.messages" && msgCount > 0 && (
+                <span className="absolute right-2 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-accent px-1 text-[8px] font-bold text-paper">
+                  {msgCount}
+                </span>
+              )}
+              {key === "nav.inbox" && inboxCount > 0 && (
+                <span className="absolute right-2 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-accent px-1 text-[8px] font-bold text-paper">
+                  {inboxCount}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

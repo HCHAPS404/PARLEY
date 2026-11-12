@@ -27,36 +27,39 @@ In `/app` chat:
 
 4. `buy it` → order card appears → **open the PayPal approval link** → approve with sandbox buyer.
    - *"The agent never touches my credentials or the price — the amount came from the server, the policy check ran in code."*
-5. **Pipeline** → the order card sits in "In escrow" — funds held, not captured.
-6. `track order <id> with UPS <tracking>` → watchdog registers it.
-7. **Inbox → Check now** → the watchdog runs live; when the carrier reports DELIVERED, the release flag lands.
+5. **Pipeline** → the order card sits in "In escrow" — funds held, not captured. **Open the drawer** → *"How your agent negotiated"* replays the A2A transcript bubble by bubble.
+6. Seller ships (second browser: Orders → tracking) → the thread gets a system event *and* the watchdog starts tracking the carrier.
+7. **Buyer confirms receipt** — *"Ya me llegó"* in the drawer → delivered. Real escrow releases on carrier DELIVERED *or* buyer confirmation, whichever comes first — same rule as AliExpress.
 
 ## 4. Release & reputation — 25s
 
-8. `release the payment` → `confirm_delivery_release` captures the authorization. Vendor score bumps `on_time`.
-9. Show the counterfactual: *"if it never arrives, `void` returns the held funds and the vendor's score drops — escrow, not a chargeback."*
-10. **Analytics** → "Saved by negotiating" KPI, vendor scores, audit feed.
+8. Inbox → `release the payment` → captures the authorization. The thread logs *"Escrow released — deal complete."*
+9. Show the counterfactual: *"if it never arrives, `void` returns the held funds — escrow, not a chargeback."*
+10. **My sellers** → rate the order ★5 → the vendor's global score updates — *"reputation is earned, not declared."*
+11. **Analytics** → "Saved by negotiating" KPI, vendor scores, audit feed.
 
 ## 5. Seller side — 35s
 
 Second browser, seller account, `/seller`:
 
-11. Deployed merchant agent: floor %, style, catalog (show CSV import quickly).
-12. **Live feed** — the negotiation from beat 2/3 appears in real time.
-13. **Leads** — "buyers who negotiated but haven't closed" + `buyer_walked` alert in Inbox.
-14. Close rate KPI + sales chart: *"the agent works while you sleep."*
+12. Deployed merchant agent: floor %, style, catalog (CSV import quickly).
+13. **Customers** → the buyer is already a CRM record: deals, lifetime spend — **send a targeted offer** back (win-back pricing, floor enforced).
+14. Buyer side: offer lands in **Inbox** → accept → *new escrow, same guardrails.*
+15. **Messages** → the thread has the whole deal timeline: negotiation close, escrow funded, tracking, delivery, release — plus live chat.
+16. **AI Assistant → "Try your agent"** — throw a low offer at the merchant agent live → watch it counter at the exact floor.
+17. **Claim path** (optional beat): buyer reports a problem → seller sees `claim open` → resolve → *"escrow holds while humans talk."*
 
 ## 6. Proof it's real — 20s
 
-15. `npm test` — 24 invariant tests: policy caps, merchant floor law, demo spend gate, i18n parity.
-16. README security model — 10 invariants enforced in code.
+18. `npm test` — 37 invariant tests: policy caps, merchant floor law, offer floor, claim states, demo spend gate, i18n parity.
+19. README security model — invariants enforced in code.
 
 ## Closing line
 
-> "Two agents meeting over MCP, PayPal escrow settling the deal, and every guardrail in code — that's procurement a solopreneur can actually trust."
+> "Two agents meeting over MCP, PayPal escrow settling the deal, a relationship that outlives the transaction — and every guardrail in code. That's procurement a solopreneur can actually trust."
 
 ## Fallbacks
 
 - **Cold start**: hit the landing ~30s before recording.
-- **Carrier lookup flaky**: the `delivered` state can be pre-seeded; show Inbox → Check now landing it live.
+- **Delivery**: `confirm_received` is the canonical path (carriers never report in sandbox); the watchdog path also works if a real tracker is attached.
 - **Demo account**: if showing a second user, demo role is search-only — spend tools are blocked by design (that's a feature to show, not a bug).

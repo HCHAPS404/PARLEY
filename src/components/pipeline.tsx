@@ -63,6 +63,12 @@ export function Pipeline({ role }: { role: string }) {
     return () => clearInterval(id);
   }, []);
 
+  const refresh = () =>
+    fetch("/api/pipeline-data")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setOrders(d.orders ?? []))
+      .catch(() => {});
+
   if (orders === null)
     return (
       <div className="grid h-full grid-cols-4 divide-x divide-line overflow-x-auto">
@@ -159,7 +165,7 @@ export function Pipeline({ role }: { role: string }) {
         );
       })}
       {selected && (
-        <OrderDrawer order={selected} onClose={() => setSelected(null)} />
+        <OrderDrawer order={selected} onClose={() => setSelected(null)} onChanged={refresh} />
       )}
     </div>
   );
@@ -169,9 +175,11 @@ export function Pipeline({ role }: { role: string }) {
 function OrderDrawer({
   order: o,
   onClose,
+  onChanged,
 }: {
   order: Order;
   onClose: () => void;
+  onChanged: () => void;
 }) {
   const { t } = usePrefs();
   const [neg, setNeg] = useState<{ transcript: NegTurn[]; listPriceCents: number; agreedCents: number | null } | null>(null);
@@ -203,6 +211,25 @@ function OrderDrawer({
       }
     } finally {
       setIssueBusy(false);
+    }
+  };
+
+  const [confirming, setConfirming] = useState(false);
+  const confirmReceived = async () => {
+    if (confirming) return;
+    setConfirming(true);
+    try {
+      const r = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "confirm_received", orderId: o.id }),
+      });
+      if (r.ok) {
+        onChanged();
+        onClose();
+      }
+    } finally {
+      setConfirming(false);
     }
   };
 
@@ -370,6 +397,18 @@ function OrderDrawer({
                 </div>
               )}
             </section>
+          )}
+
+          {/* Confirm receipt — the buyer-side delivery path. In production the
+              carrier feed does this; here the buyer's word moves the escrow. */}
+          {!disputed && !o.deliveredAt && o.stage === 2 && (
+            <button
+              onClick={confirmReceived}
+              disabled={confirming}
+              className="w-full rounded-lg border border-ok/40 bg-ok-soft px-3 py-2.5 text-[13px] font-semibold text-ok transition-colors hover:bg-ok/15 disabled:opacity-50"
+            >
+              {confirming ? "…" : t("pipe.d.confirm")}
+            </button>
           )}
 
           {/* Report a problem — claims only make sense while money is held. */}

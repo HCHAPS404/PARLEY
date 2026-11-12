@@ -175,22 +175,7 @@ export function SellerDashboard({ view }: { view: SellerView }) {
     liveCampaigns.find((c) => c.productId == null) ??
     null;
 
-  if (!profile)
-    return (
-      <div className="mx-auto max-w-lg p-8 text-center">
-        {/* eslint-disable-next-line @next/next/no-img-element -- illustration */}
-        <img
-          src="/gen/seller-sleep.webp"
-          alt=""
-          className="mx-auto h-36 w-36 rounded-2xl border border-line object-cover"
-        />
-        <h2 className="mt-4 font-display text-lg font-semibold">{t("sell.empty.title")}</h2>
-        <p className="mt-1 text-sm text-ink-soft">{t("sell.empty.sub")}</p>
-        <Link href="/settings" className="mt-4 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-paper hover:bg-accent-strong">
-          {t("sell.empty.cta")}
-        </Link>
-      </div>
-    );
+  if (!profile) return <SellerOnboarding onDone={load} />;
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 p-6">
@@ -822,6 +807,145 @@ export function SellerDashboard({ view }: { view: SellerView }) {
   );
 }
 
+/** First-run setup: name the store, set the margin floor, add the first
+ *  product — three steps and the merchant agent is live. A new account
+ *  should never land on an empty dashboard wondering what to do. */
+function SellerOnboarding({ onDone }: { onDone: () => void }) {
+  const { t } = usePrefs();
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState("");
+  const [floor, setFloor] = useState(85);
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("10");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const finish = async () => {
+    if (busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const p = await fetch("/api/seller", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "profile", displayName: name, floorRatioPct: floor, style: "balanced" }),
+      });
+      if (!p.ok) throw new Error("profile");
+      if (title.trim() && Number(price) > 0) {
+        await fetch("/api/seller", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "addProduct", title: title.trim(),
+            priceUsd: Number(price), stock: Math.max(0, Math.round(Number(stock) || 0)),
+          }),
+        });
+      }
+      onDone();
+    } catch {
+      setErr(t("common.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const STEPS = [
+    {
+      body: (
+        <>
+          <label className="block text-[11px] font-medium text-ink-soft">{t("sell.ob.name")}</label>
+          <input autoFocus value={name} onChange={(e) => setName(e.target.value)}
+            placeholder={t("sell.ob.namePh")}
+            className="mt-1.5 w-full rounded-md border border-line bg-paper px-3 py-2.5 text-sm outline-none focus:border-accent" />
+        </>
+      ),
+      ok: name.trim().length >= 2,
+    },
+    {
+      body: (
+        <>
+          <label className="block text-[11px] font-medium text-ink-soft">{t("sell.ob.floor")}</label>
+          <div className="mt-1.5 flex items-center gap-3">
+            <input type="range" min={50} max={95} value={floor}
+              onChange={(e) => setFloor(Number(e.target.value))}
+              className="flex-1 accent-[var(--accent)]" />
+            <span className="w-12 text-right font-display text-sm font-semibold">{floor}%</span>
+          </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft/80">{t("sell.ob.floorSub")}</p>
+        </>
+      ),
+      ok: true,
+    },
+    {
+      body: (
+        <>
+          <label className="block text-[11px] font-medium text-ink-soft">{t("sell.ob.first")}</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)}
+            placeholder={t("sell.ob.titlePh")}
+            className="mt-1.5 w-full rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-accent" />
+          <div className="mt-2 flex gap-2">
+            <input value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ""))}
+              placeholder={t("sell.ob.pricePh")}
+              className="w-28 rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-accent" />
+            <input value={stock} onChange={(e) => setStock(e.target.value.replace(/\D/g, ""))}
+              placeholder={t("sell.ob.stockPh")}
+              className="w-24 rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-accent" />
+          </div>
+        </>
+      ),
+      ok: true, // product optional — catalog can be filled later
+    },
+  ];
+
+  return (
+    <div className="mx-auto max-w-md p-8">
+      {/* eslint-disable-next-line @next/next/no-img-element -- illustration */}
+      <img src="/gen/seller-sleep.webp" alt=""
+        className="mx-auto h-28 w-28 rounded-2xl border border-line object-cover" />
+      <h2 className="mt-4 text-center font-display text-lg font-semibold">{t("sell.ob.title")}</h2>
+      <p className="mt-1 text-center text-sm text-ink-soft">{t("sell.ob.sub")}</p>
+
+      <ol className="mt-4 flex justify-center gap-1.5">
+        {STEPS.map((_, i) => (
+          <li key={i} className={`h-1.5 w-8 rounded-full ${i <= step ? "bg-accent" : "bg-line"}`} />
+        ))}
+      </ol>
+
+      <div className="mt-5 rounded-xl border border-line bg-card p-5">
+        {STEPS[step].body}
+        {err && <p className="mt-2 text-[12px] text-danger">{err}</p>}
+        <div className="mt-4 flex justify-between">
+          <button
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            disabled={step === 0}
+            className="rounded-md px-3 py-2 text-[12px] font-medium text-ink-soft hover:text-ink disabled:opacity-0"
+          >
+            {t("common.back")}
+          </button>
+          {step < STEPS.length - 1 ? (
+            <button
+              onClick={() => setStep((s) => s + 1)}
+              disabled={!STEPS[step].ok}
+              className="rounded-md bg-accent px-4 py-2 text-[12px] font-medium text-paper hover:bg-accent-strong disabled:opacity-50"
+            >
+              {t("common.next")}
+            </button>
+          ) : (
+            <button
+              onClick={finish}
+              disabled={busy}
+              className="rounded-md bg-accent px-4 py-2 text-[12px] font-semibold text-paper hover:bg-accent-strong disabled:opacity-50"
+            >
+              {busy ? "…" : t("sell.ob.go")}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** "Try your agent" — the seller throws test offers at their own merchant
  *  agent and watches it negotiate under their real floor, style and campaigns.
  *  Nothing is recorded: pure rehearsal. */
@@ -897,7 +1021,7 @@ function NegotiationSim({ products }: { products: Product[] }) {
         {resp && (
           <div className={`rounded-lg border px-3 py-2.5 text-[12px] ${TONE[resp.action] ?? TONE.reject}`}>
             <div className="flex items-center justify-between font-semibold uppercase tracking-wide text-[10px]">
-              <span>{resp.action}</span>
+              <span>{resp.action === "error" ? "error" : t(`sell.sim.${resp.action}` as never)}</span>
               {resp.priceCents != null && <span>{usd(resp.priceCents)}</span>}
             </div>
             {resp.message && <p className="mt-1.5 text-ink">{resp.message}</p>}

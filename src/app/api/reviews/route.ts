@@ -1,8 +1,9 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
-import { merchantProfiles, ordersLocal, sellerReviews, users } from "@/lib/db/schema";
+import { merchantProfiles, merchantSales, ordersLocal, sellerReviews, users } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { canReviewOrder } from "@/lib/claims";
 import { syncSellerScore } from "@/lib/relationships";
 import { audit } from "@/lib/audit";
 
@@ -86,10 +87,28 @@ export async function POST(req: Request) {
     .where(and(eq(ordersLocal.paypalOrderId, orderId), eq(ordersLocal.userId, user.id)))
     .limit(1);
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  if (order.status !== "captured" && order.status !== "delivered")
+  if (!canReviewOrder(order.status))
     return NextResponse.json({ error: "Rate after delivery completes" }, { status: 400 });
-  const sellerUserId = String(body.sellerUserId ?? "");
-  if (!sellerUserId) return NextResponse.json({ error: "sellerUserId required" }, { status: 400 });
+  // The seller is derived server-side — the client cannot attach a review to
+  // an arbitrary merchant. Parley sale first, vendor-name match as fallback.
+  const [sale] = await db
+    .select({ sellerUserId: merchantSales.sellerUserId })
+    .from(merchantSales)
+    .where(eq(merchantSales.buyerOrderId, orderId))
+    .limit(1);
+  let sellerUserId = sale?.sellerUserId ?? "";
+  if (!sellerUserId && order.vendor) {
+    const [mp] = await db
+      .select({ userId: merchantProfiles.userId })
+      .from(merchantProfiles)
+      .where(eq(merchantProfiles.displayName, order.vendor))
+      .limit(1);
+    sellerUserId = mp?.userId ?? "";
+  }
+  if (!sellerUserId)
+    return NextResponse.json({ error: "No Parley seller behind this order" }, { status: 400 });
+  if (body.sellerUserId && body.sellerUserId !== sellerUserId)
+    return NextResponse.json({ error: "Seller mismatch for this order" }, { status: 400 });
   const [dupe] = await db
     .select({ id: sellerReviews.id })
     .from(sellerReviews)

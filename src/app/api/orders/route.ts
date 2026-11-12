@@ -4,6 +4,7 @@ import { ensureDb, getDb } from "@/lib/db";
 import { alerts, merchantSales, ordersLocal, spaces } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { partiesForOrder, postSystemMessage } from "@/lib/relationships";
+import { canConfirmReceipt, canReportOrder } from "@/lib/claims";
 import { audit } from "@/lib/audit";
 
 export const maxDuration = 30;
@@ -46,10 +47,11 @@ export async function POST(req: Request) {
       .where(and(eq(ordersLocal.paypalOrderId, orderId), eq(ordersLocal.userId, user.id)))
       .limit(1);
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    if (order.status === "captured" || order.status === "voided" || order.status === "cancelled")
-      return NextResponse.json({ error: `Order already ${order.status} — claims only while escrow is open` }, { status: 400 });
-    if (order.disputedAt)
-      return NextResponse.json({ error: "A claim is already open on this order" }, { status: 409 });
+    if (!canReportOrder(order.status, order.disputedAt))
+      return NextResponse.json(
+        { error: order.disputedAt ? "A claim is already open on this order" : `Order is ${order.status} — claims only while escrow is open` },
+        { status: order.disputedAt ? 409 : 400 },
+      );
     const note = String(body.note ?? "").slice(0, 300);
     if (!note) return NextResponse.json({ error: "Describe the problem" }, { status: 400 });
 
@@ -85,6 +87,56 @@ export async function POST(req: Request) {
       rationale: "Buyer flagged a problem — escrow stays held pending resolution",
     });
     return NextResponse.json({ ok: true });
+  }
+
+  // ── Buyer confirms receipt — the escrow's payoff path. Real escrow (like
+  // AliExpress) releases on carrier DELIVERED *or* buyer confirmation,
+  // whichever comes first. In sandbox demos carriers never report, so this
+  // is the honest way to complete the arc.
+  if (body.action === "confirm_received") {
+    const [order] = await db
+      .select()
+      .from(ordersLocal)
+      .where(and(eq(ordersLocal.paypalOrderId, orderId), eq(ordersLocal.userId, user.id)))
+      .limit(1);
+    if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if (!canConfirmReceipt(order.status, order.deliveredAt, order.disputedAt))
+      return NextResponse.json(
+        { error: order.disputedAt ? "Resolve the open claim first" : `Cannot confirm — order is ${order.status}` },
+        { status: 400 },
+      );
+
+    await db
+      .update(ordersLocal)
+      .set({ status: "delivered", deliveredAt: new Date(), updatedAt: new Date() })
+      .where(eq(ordersLocal.paypalOrderId, orderId));
+    // Same prompt the watchdog fires on carrier DELIVERED — release is a
+    // deliberate second step, the buyer still decides.
+    await db.insert(alerts).values({
+      kind: "delivered",
+      spaceId: order.spaceId,
+      payload: {
+        paypalOrderId: orderId,
+        title: order.title,
+        reason: "You confirmed receipt — release the escrow to pay the seller",
+      },
+    });
+    try {
+      const parties = await partiesForOrder(orderId);
+      if (parties) {
+        await postSystemMessage({
+          ...parties,
+          unreadFor: "seller",
+          body: `Buyer confirmed receipt of "${order.title}". Releasing the escrow pays the seller.`,
+        });
+      }
+    } catch { /* the confirmation stands */ }
+    await audit({
+      actor: "user", action: "receipt_confirmed", userId: user.id, spaceId: order.spaceId ?? undefined,
+      input: { orderId },
+      rationale: "Buyer confirmed the goods arrived — escrow ready to release",
+    });
+    return NextResponse.json({ ok: true, status: "delivered" });
   }
 
   // ── Seller marks the claim resolved ─────────────────────────────────

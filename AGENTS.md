@@ -31,6 +31,13 @@ AI procurement agent for solopreneurs — finds real products (Channel3), negoti
 - `src/lib/db/` — Drizzle: Neon Postgres (`DATABASE_URL`) or embedded PGlite (local). Schema bootstraps itself in `ensureDb()`
 - `src/lib/policy.ts` — deterministic spend gate
 - `src/lib/audit.ts` — append-only audit log
+- `src/lib/relationships.ts` — buyer↔seller layer: threads/messages (incl. `system` lifecycle events), repeat-deal context, vendor-score sync
+- `src/lib/claims.ts` — pure predicates for relationship invariants (offer floor, claim/review/confirm-receipt state gates) — unit-tested
+- `src/app/api/threads` — deal channel (one thread per buyer↔seller pair, unread counters)
+- `src/app/api/offers` — seller→buyer targeted offers; accept runs `checkPolicy` + real escrow, ledger commits atomically
+- `src/app/api/orders` — order claims (`report`/`resolve`) and `confirm_received` (buyer-side delivery — the sandbox-safe payoff path)
+- `src/app/api/reviews` — post-delivery ratings; seller derived server-side from the sale, never trusted from input
+- `src/app/api/mcp` — JSON-RPC merchant boundary (`MCP_SECRET`); without it `negotiate()` falls back to the same agent in-process
 
 ## Security invariants (do not break)
 

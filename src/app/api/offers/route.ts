@@ -14,6 +14,7 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { getActiveSpace } from "@/lib/spaces";
 import { checkPolicy } from "@/lib/policy";
+import { canSendOffer, offerFloorCents } from "@/lib/claims";
 import { createEscrowOrder } from "@/lib/paypal";
 import { ensureThread, postMessage } from "@/lib/relationships";
 import { env } from "@/lib/env";
@@ -118,8 +119,9 @@ export async function POST(req: Request) {
       .from(merchantProfiles)
       .where(eq(merchantProfiles.userId, user.id))
       .limit(1);
-    const floor = Math.round((product.priceCents * (profile?.floorRatioPct ?? 85)) / 100);
-    if (priceCents < floor)
+    const floorRatio = profile?.floorRatioPct ?? 85;
+    const floor = offerFloorCents(product.priceCents, floorRatio);
+    if (!canSendOffer(priceCents, product.priceCents, floorRatio))
       return NextResponse.json(
         { error: `Below your margin floor — minimum $${(floor / 100).toFixed(2)}` },
         { status: 400 },
