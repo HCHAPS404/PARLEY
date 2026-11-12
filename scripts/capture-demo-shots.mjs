@@ -20,20 +20,40 @@ const buyer = "buyer@parley.dev";
 const seller = "seller@parley.dev";
 
 const shots = [
-  // [file, url, role, waitNote]
+  // [file, url, role, act?] — act runs after the page settles, before the shot
   ["buyer-chat", "/app", buyer],
   ["buyer-pipeline", "/pipeline", buyer],
   ["buyer-inbox", "/inbox", buyer],
-  ["buyer-messages", "/messages", buyer],
+  // Open the first thread so the pane shows the conversation, not the empty hint.
+  ["buyer-messages", "/messages", buyer, openFirstThread],
   ["buyer-sellers", "/sellers", buyer],
   ["seller-home", "/seller", seller],
   ["seller-orders", "/seller/orders", seller],
   ["seller-customers", "/seller/customers", seller],
   ["seller-copilot", "/seller/copilot", seller],
-  ["seller-messages", "/messages", seller],
+  ["seller-messages", "/messages", seller, openFirstThread],
+  // Inventory with the product editor modal open — shows the richer controls.
+  ["seller-inventory", "/seller/inventory", seller],
+  ["seller-inventory-edit", "/seller/inventory", seller, openFirstEdit],
   ["storefront", "/s/parcelpro-supply", null],
   ["landing", "/", null],
 ];
+
+async function openFirstThread(page) {
+  const btn = page.locator("ul.divide-y > li > button").first();
+  if (await btn.isVisible({ timeout: 8000 }).catch(() => false)) {
+    await btn.click();
+    await page.waitForTimeout(2500); // thread fetch + paint
+  }
+}
+
+async function openFirstEdit(page) {
+  const btn = page.getByRole("button", { name: "Edit", exact: true }).first();
+  if (await btn.isVisible({ timeout: 8000 }).catch(() => false)) {
+    await btn.click();
+    await page.waitForTimeout(1200);
+  }
+}
 
 async function login(page, user) {
   await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded", timeout: 120_000 });
@@ -56,7 +76,7 @@ const page = await ctx.newPage();
 mkdirSync(OUT, { recursive: true });
 
 let loggedInAs = null;
-for (const [file, url, role] of shots) {
+for (const [file, url, role, act] of shots) {
   try {
     if (role && loggedInAs !== role) {
       await ctx.clearCookies();
@@ -70,6 +90,7 @@ for (const [file, url, role] of shots) {
     await page.goto(`${BASE}${url}`, { waitUntil: "domcontentloaded", timeout: 120_000 });
     // Let client data fetch + first paint settle.
     await page.waitForTimeout(4500);
+    if (act) await act(page);
     await page.screenshot({ path: `${OUT}${file}.jpg`, type: "jpeg", quality: 82 });
     console.log(`✓ ${file}`);
   } catch (e) {

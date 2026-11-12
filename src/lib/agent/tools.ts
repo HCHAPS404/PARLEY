@@ -259,6 +259,7 @@ export function agentTools(ctx: AgentCtx) {
               priceCents: sellerProducts.priceCents,
               currency: sellerProducts.currency,
               image: sellerProducts.image,
+              description: sellerProducts.description,
               sellerName: merchantProfiles.displayName,
               sellerUserId: sellerProducts.userId,
             })
@@ -279,6 +280,7 @@ export function agentTools(ctx: AgentCtx) {
               id: m.id, title: m.title, brand: "Parley seller",
               bestPriceCents: priceCents, currency: m.currency,
               image: m.image ?? undefined,
+              ...(m.description ? { description: m.description } : {}),
               merchant: m.sellerName, offersCount: 1,
               offers: [{ domain: m.sellerName, priceCents, currency: m.currency, url: "" }],
               ...(camp ? { promo: `${camp.name} −${camp.pctOff}%` } : {}),

@@ -229,6 +229,7 @@ export async function POST(req: Request) {
     days?: number;
     campaignId?: string;
     image?: string;
+    description?: string;
     offerUsd?: number;
     round?: number;
   };
@@ -277,10 +278,12 @@ export async function POST(req: Request) {
     if (!profile) return NextResponse.json({ error: "Create your merchant profile first" }, { status: 400 });
     const id = `sp_${crypto.randomUUID().slice(0, 8)}`;
     const image = cleanImage(body.image);
+    const description = String(body.description ?? "").trim().slice(0, 500);
     await db.insert(sellerProducts).values({
       id, userId: user.id, title, priceCents,
       stock: Math.max(0, Math.round(Number(body.stock) || 10)),
       ...(image ? { image } : {}),
+      ...(description ? { description } : {}),
     });
     return NextResponse.json({ ok: true, id });
   }
@@ -440,9 +443,15 @@ export async function POST(req: Request) {
   if (body.action === "updateProduct") {
     const priceUsd = Number(body.priceUsd);
     const stock = Math.round(Number(body.stock));
-    const fields: Partial<{ priceCents: number; stock: number; image: string | null }> = {};
+    const fields: Partial<{ priceCents: number; stock: number; image: string | null; title: string; description: string | null }> = {};
     const image = cleanImage(body.image);
     if (body.image !== undefined) fields.image = image;
+    if (body.title !== undefined) {
+      const t = String(body.title).trim().slice(0, 120);
+      if (t) fields.title = t;
+    }
+    if (body.description !== undefined)
+      fields.description = String(body.description).trim().slice(0, 500) || null;
     if (Number.isFinite(priceUsd) && priceUsd > 0) fields.priceCents = Math.round(priceUsd * 100);
     if (Number.isInteger(stock) && stock >= 0) fields.stock = stock;
     if (!Object.keys(fields).length)

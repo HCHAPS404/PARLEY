@@ -28,6 +28,7 @@ export interface ProductCard {
   offersCount: number;
   offers: OfferInfo[];
   promo?: string; // active seller-campaign label, e.g. "Spring sale −15%"
+  description?: string; // seller-written pitch — Parley-market items only
 }
 
 interface RawOffer {

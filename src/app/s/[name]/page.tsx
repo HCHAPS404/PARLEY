@@ -161,6 +161,9 @@ export default async function Storefront({
                   )}
                   <div className="p-4">
                     <p className="text-[14px] font-medium leading-snug">{p.title}</p>
+                    {p.description && (
+                      <p className={`mt-1 line-clamp-2 text-[11.5px] leading-snug ${SOFT}`}>{p.description}</p>
+                    )}
                     <div className="mt-2 flex items-baseline gap-2">
                       <span className="font-display text-lg font-semibold">{usd(pr.price)}</span>
                       {pr.list != null && (

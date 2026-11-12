@@ -18,13 +18,14 @@ import {
   TrendingUp,
   Truck,
   Wrench,
+  X,
 } from "lucide-react";
 import { usePrefs } from "./preferences";
 import { Markdown } from "./markdown";
 import Link from "next/link";
 
 interface Profile { id: string; displayName: string; floorRatioPct: number; style: string }
-interface Product { id: string; title: string; priceCents: number; stock: number; image: string | null }
+interface Product { id: string; title: string; priceCents: number; stock: number; image: string | null; description: string | null }
 interface Sale { id: string; productTitle: string; agreedCents: number; listCents: number | null; buyerLabel: string | null; buyerOrderId?: string | null; disputed?: boolean; trackingNumber?: string | null; status: string; createdAt: string }
 interface SellerEvent { id: string; productTitle: string; buyerLabel: string | null; kind: string; offerCents: number | null; counterCents: number | null; message: string | null; createdAt: string }
 interface Lead { buyerLabel: string | null; productTitle: string; kind: string; offerCents: number | null; counterCents: number | null; at: string }
@@ -94,8 +95,11 @@ export function SellerDashboard({ view }: { view: SellerView }) {
   const [shipTrack, setShipTrack] = useState<Record<string, string>>({});
   const [shipCarrier, setShipCarrier] = useState<Record<string, string>>({});
   const [editId, setEditId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editStock, setEditStock] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editImg, setEditImg] = useState<string | null>(null); // new image data URL — null = keep
   const [busy, setBusy] = useState(false);
 
   const load = () =>
@@ -442,7 +446,6 @@ export function SellerDashboard({ view }: { view: SellerView }) {
                 {products.map((p) => {
                   const camp = campaignFor(p.id);
                   const low = p.stock <= 3;
-                  const editing = editId === p.id;
                   return (
                     <div key={p.id} className="group overflow-hidden rounded-lg border border-line bg-paper">
                       {/* Product photo */}
@@ -479,6 +482,9 @@ export function SellerDashboard({ view }: { view: SellerView }) {
                       </div>
                       <div className="p-2.5">
                         <div className="truncate text-[13px] font-medium" title={p.title}>{p.title}</div>
+                        {p.description && (
+                          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-ink-soft">{p.description}</p>
+                        )}
                         <div className="mt-0.5 flex items-center justify-between text-[12px]">
                           <span>
                             {camp ? (
@@ -495,9 +501,12 @@ export function SellerDashboard({ view }: { view: SellerView }) {
                         <div className="mt-2 flex gap-1.5">
                           <button
                             onClick={() => {
-                              setEditId(editing ? null : p.id);
+                              setEditId(p.id);
+                              setEditTitle(p.title);
                               setEditPrice((p.priceCents / 100).toFixed(2));
                               setEditStock(String(p.stock));
+                              setEditDesc(p.description ?? "");
+                              setEditImg(null);
                             }}
                             className="flex-1 rounded-md border border-line py-1 text-[11px] font-medium text-ink-soft hover:border-accent hover:text-accent-strong"
                           >
@@ -511,32 +520,6 @@ export function SellerDashboard({ view }: { view: SellerView }) {
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                        {editing && (
-                          <div className="mt-2 flex items-center gap-1.5">
-                            <input
-                              value={editPrice}
-                              onChange={(e) => setEditPrice(e.target.value)}
-                              type="number" min={0.01} step="0.01" placeholder="$"
-                              className="w-16 rounded-md border border-line bg-card px-2 py-1 text-[11px] outline-none focus:border-accent"
-                            />
-                            <input
-                              value={editStock}
-                              onChange={(e) => setEditStock(e.target.value)}
-                              type="number" min={0} placeholder={t("sell.stockPh")}
-                              className="w-14 rounded-md border border-line bg-card px-2 py-1 text-[11px] outline-none focus:border-accent"
-                            />
-                            <button
-                              onClick={async () => {
-                                await post({ action: "updateProduct", productId: p.id, priceUsd: Number(editPrice), stock: Number(editStock) });
-                                setEditId(null);
-                              }}
-                              disabled={busy}
-                              className="flex-1 rounded-md bg-accent py-1 text-[11px] font-medium text-paper disabled:opacity-50"
-                            >
-                              {t("sell.save")}
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </div>
                   );
@@ -803,6 +786,120 @@ export function SellerDashboard({ view }: { view: SellerView }) {
           </div>
         </div>
       )}
+
+      {/* Product edit modal — photo, copy, price, stock in one place */}
+      {editId && (() => {
+        const p = products?.find((x) => x.id === editId);
+        if (!p) return null;
+        return (
+          <>
+            <div className="fixed inset-0 z-40 bg-ink/30 backdrop-blur-[2px]" onClick={() => setEditId(null)} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+              <div className="w-full max-w-md overflow-hidden rounded-xl border border-line bg-card shadow-2xl">
+                <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+                  <h2 className="font-display text-[15px] font-semibold">{t("sell.editProduct")}</h2>
+                  <button onClick={() => setEditId(null)} className="rounded-md p-1.5 text-ink-soft hover:bg-paper hover:text-ink" aria-label={t("common.close")}>
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="space-y-4 p-5">
+                  {/* Photo */}
+                  <div className="relative h-36 overflow-hidden rounded-lg border border-line bg-paper">
+                    {(editImg ?? p.image) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={editImg ?? p.image!} alt={p.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-ink-soft">
+                        <ImagePlus className="h-5 w-5" />
+                        <span className="text-[10px]">{t("sell.addPhoto")}</span>
+                      </div>
+                    )}
+                    <label className="absolute bottom-2 right-2 cursor-pointer rounded-md border border-line bg-card/90 px-2.5 py-1 text-[11px] font-medium backdrop-blur transition-colors hover:border-accent hover:text-accent-strong">
+                      {t("sell.changePhoto")}
+                      <input
+                        type="file" accept="image/*" className="sr-only"
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (f) setEditImg(await fileToProductImage(f));
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {/* Title */}
+                  <label className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
+                    {t("sell.title")}
+                    <input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      maxLength={120}
+                      className="mt-1 w-full rounded-md border border-line bg-paper px-3 py-2 text-[13px] normal-case tracking-normal text-ink outline-none focus:border-accent"
+                    />
+                  </label>
+                  {/* Price + stock */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
+                      {t("sell.priceUsd")}
+                      <input
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
+                        type="number" min={0.01} step="0.01"
+                        className="mt-1 w-full rounded-md border border-line bg-paper px-3 py-2 text-[13px] normal-case tracking-normal text-ink outline-none focus:border-accent"
+                      />
+                    </label>
+                    <label className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
+                      {t("sell.stockPh")}
+                      <input
+                        value={editStock}
+                        onChange={(e) => setEditStock(e.target.value)}
+                        type="number" min={0}
+                        className="mt-1 w-full rounded-md border border-line bg-paper px-3 py-2 text-[13px] normal-case tracking-normal text-ink outline-none focus:border-accent"
+                      />
+                    </label>
+                  </div>
+                  {/* Description */}
+                  <label className="block text-[11px] font-medium uppercase tracking-wide text-ink-soft">
+                    {t("sell.desc")}
+                    <textarea
+                      value={editDesc}
+                      onChange={(e) => setEditDesc(e.target.value)}
+                      maxLength={500}
+                      rows={3}
+                      placeholder={t("sell.descPh")}
+                      className="mt-1 w-full resize-none rounded-md border border-line bg-paper px-3 py-2 text-[13px] normal-case tracking-normal text-ink outline-none focus:border-accent"
+                    />
+                    <span className="mt-0.5 block text-right text-[10px] normal-case tracking-normal text-ink-soft/60">{editDesc.length}/500</span>
+                  </label>
+                </div>
+                <div className="flex gap-2 border-t border-line px-5 py-3.5">
+                  <button
+                    onClick={() => setEditId(null)}
+                    className="flex-1 rounded-md border border-line py-2 text-[12px] font-medium text-ink-soft hover:border-line hover:text-ink"
+                  >
+                    {t("common.cancel")}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await post({
+                        action: "updateProduct", productId: p.id,
+                        title: editTitle.trim() || undefined,
+                        priceUsd: Number(editPrice), stock: Number(editStock),
+                        description: editDesc,
+                        ...(editImg ? { image: editImg } : {}),
+                      });
+                      setEditId(null);
+                    }}
+                    disabled={busy}
+                    className="flex-1 rounded-md bg-accent py-2 text-[12px] font-semibold text-paper hover:bg-accent-strong disabled:opacity-50"
+                  >
+                    {t("sell.save")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
