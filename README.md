@@ -48,6 +48,26 @@ goods arrive.
 > detection, formal PayPal invoices, and an autonomous reorder engine guarded
 > by the same policy. Nothing claimed here exceeds what the code does.
 
+## Try it live — judge access
+
+**https://parley-wt1k.onrender.com** — two accounts, two sides of the same
+market. Password for both: **`ParleyJudgeDemo26`**
+
+| Login | Role | What you'll find |
+|---|---|---|
+| `buyer1` | Buyer | Escrow pipeline in every stage, a negotiation transcript to replay, a ParcelPro offer in the Inbox (accept → real PayPal escrow), a seller thread in Messages, and a review waiting on My Sellers |
+| `seller1` | Seller (**ParcelPro Supply**) | Live negotiation feed, sales ledger, Customers CRM (2 buyers + a walked lead), the buyer's unread message, and "Try your agent" — throw it a low offer and watch it counter at exactly its 85% floor |
+
+Suggested path (≈3 min): as `buyer1` chat *"find kraft boxes"* → *"negotiate
+the ParcelPro one"* → *"buy it"* → approve on PayPal → Pipeline shows the
+escrow; as `seller1` ship it with any UPS-format tracking → as `buyer1` open
+the order → **Confirm receipt** → Inbox → **release the payment**. Then read
+the thread — the whole deal lifecycle is logged there. Full walkthrough:
+[`docs/demo-script.md`](docs/demo-script.md).
+
+> Sandbox note: `SEED-*` rows are local fixtures — always release the order
+> you just bought, not a seeded one.
+
 <img src="docs/parley-divider.svg" width="100%" alt="" />
 
 ## How it works
@@ -119,6 +139,8 @@ is built so the model can *propose* and only *code* can move money:
 | **Everything is audited** | Actor, action, rationale, token count, and cost — append-only and rendered in the analytics workspace. |
 | **A real counterparty — not a function** | `merchant_quote` negotiates against a merchant-side **LLM agent** with its own prompt, tools (`check_margin_floor`, `check_inventory`), and incentives. The floor is enforced server-side, so it can never sell below cost — whatever the model says. |
 | **Two-sided marketplace** | Sellers deploy their own merchant agent — catalog, margin floor, negotiation style — and its deals land on their live feed, ledger, and lead radar. Buyer and seller agents meet over MCP/A2A; neither talks to the other's human. |
+| **The relationship outlives the deal** | A closed deal opens a buyer↔seller channel: the escrow timeline posts there as system events, plus live chat with unread badges. Sellers get a CRM (deals, lifetime spend, walked leads) and send targeted win-back offers that convert into new escrows; buyers leave post-delivery reviews that feed the seller's public vendor score. |
+| **Claims — the unhappy path, handled** | A buyer can flag a problem while funds are held: the seller is alerted, the escrow stays locked, and resolution happens in the channel. Confirming receipt of a disputed order is blocked in code. |
 | **Market intelligence, not just sourcing** | The agent reports on demand — catalog depth, price spread, 90-day price trajectories — and watches products *or whole queries* for better offers, landing deals in the Inbox with links to act. |
 | **Visual sourcing** | Attach a product photo — it's matched against the live catalog server-side and becomes sourcing context. The model never handles the raw bytes. |
 | **Formal paper trail** | A negotiated purchase can mint a real PayPal invoice (create → send) for the escrowed amount — procurement documentation, not just a charge. |
@@ -271,6 +293,9 @@ counterparty:
 | `alerts` | Watchdog findings — overdue delivery, DELIVERED, reorder proposals |
 | `merchant_profiles` / `seller_products` | The user's own merchant agent — floor, style, catalog |
 | `merchant_sales` / `seller_events` | The seller ledger — closed deals + every negotiation round, live |
+| `deal_threads` / `deal_messages` | Buyer↔seller channel — one thread per pair, lifecycle system events, unread counters |
+| `direct_offers` | Targeted seller→buyer pricing — floor enforced; accepting mints a real escrow |
+| `seller_reviews` | Post-delivery ratings — seller derived server-side, feeds `vendor_scores` |
 | `price_watches` | Market surveillance — per-product or per-query targets the watchdog scans |
 
 **Default policy** — `$250`/tx · `$750`/day · `$3,000`/month · `$50` autonomous limit.
