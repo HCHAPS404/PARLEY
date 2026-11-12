@@ -24,11 +24,7 @@ const INK = "text-[#e8efec]";
 const SOFT = "text-[#8fa3a0]";
 const TEAL = "text-[#2dd4bf]";
 
-const slugify = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+import { slugify } from "@/lib/slug";
 
 const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 

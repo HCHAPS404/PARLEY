@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import {
   createSpace,
+  deleteSpace,
   getActiveSpace,
   listSpaces,
   updateSpace,
@@ -49,6 +50,19 @@ export async function PATCH(req: Request) {
     color: COLORS.includes(body.color ?? "") ? body.color : undefined,
   });
   return ok
+    ? NextResponse.json({ ok: true })
+    : NextResponse.json({ error: "not found" }, { status: 404 });
+}
+
+export async function DELETE(req: Request) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { id } = (await req.json().catch(() => ({}))) as { id?: string };
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const res = await deleteSpace(user.id, id);
+  if (res === "last")
+    return NextResponse.json({ error: "cannot delete your only space" }, { status: 400 });
+  return res
     ? NextResponse.json({ ok: true })
     : NextResponse.json({ error: "not found" }, { status: 404 });
 }

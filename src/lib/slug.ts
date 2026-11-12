@@ -1,0 +1,3 @@
+/** "ParcelPro Supply" → "parcelpro-supply" — the public storefront slug. */
+export const slugify = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");

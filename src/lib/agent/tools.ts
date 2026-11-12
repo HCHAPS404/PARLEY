@@ -33,6 +33,7 @@ import { merchantAgentRound } from "./merchant";
 import { recordSellerInteraction, repeatDealsFor } from "../relationships";
 import { activeCampaignFor, activeCampaignsMap, promoPriceCents } from "../campaigns";
 import { rateLimit } from "../rate-limit";
+import { recordPricePoint } from "../price-trace";
 import { env } from "../env";
 
 // ─── Server-side resolution ─────────────────────────────────────────
@@ -508,7 +509,8 @@ export function agentTools(ctx: AgentCtx) {
           negotiationId: negotiated ? negotiationId : null,
           productSnapshot: product,
         });
-        // Buying from a Parley seller → link the escrow to their sale ledger.
+        // Buying from a Parley seller → link the escrow to their sale ledger
+        // and log the paid-price point on their side of the trace.
         if (productId.startsWith("sp_")) {
           await db.execute(sql`
             update merchant_sales set buyer_order_id = ${order.id}
@@ -518,6 +520,31 @@ export function agentTools(ctx: AgentCtx) {
               where sp.id = ${productId} and ms.buyer_order_id is null
               order by ms.created_at desc limit 1
             )`);
+          const [sp] = await db
+            .select({ sellerUserId: sellerProducts.userId })
+            .from(sellerProducts)
+            .where(eq(sellerProducts.id, productId))
+            .limit(1);
+          if (sp) {
+            await recordPricePoint({
+              userId: sp.sellerUserId, sellerUserId: sp.sellerUserId,
+              vendorDomain: product.merchant ?? null, title: product.title,
+              cents: unitCents, kind: "paid", orderId: order.id,
+            });
+          }
+        }
+        // The buyer's trace: sticker today vs what the agent actually closed.
+        await recordPricePoint({
+          userId: ctx.userId, spaceId: ctx.spaceId,
+          vendorDomain: product.merchant ?? null, title: product.title,
+          cents: product.bestPriceCents ?? unitCents, kind: "list", orderId: order.id,
+        });
+        if (negotiated) {
+          await recordPricePoint({
+            userId: ctx.userId, spaceId: ctx.spaceId,
+            vendorDomain: product.merchant ?? null, title: product.title,
+            cents: unitCents, kind: "paid", orderId: order.id,
+          });
         }
         await audit({
           actor: "agent",

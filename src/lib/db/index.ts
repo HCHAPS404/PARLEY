@@ -245,6 +245,18 @@ create table if not exists price_watches (
 );
 alter table price_watches alter column product_id drop not null;
 alter table price_watches add column if not exists query text;
+create table if not exists price_points (
+  id text primary key,
+  user_id text not null,
+  space_id text,
+  vendor_domain text,
+  seller_user_id text,
+  title text not null,
+  cents integer not null,
+  kind text not null,
+  order_id text,
+  created_at timestamptz default now()
+);
 `;
 
 /** Idempotent schema bootstrap — runs once per process, lazily on first use. */
@@ -289,6 +301,8 @@ export function ensureDb(): Promise<void> {
           body text not null,
           created_at timestamptz default now()
         )`);
+      await db.execute(sql`alter table deal_messages add column if not exists image text`);
+      await db.execute(sql`alter table deal_messages add column if not exists pinned boolean not null default false`);
       await db.execute(sql`
         create table if not exists direct_offers (
           id text primary key,

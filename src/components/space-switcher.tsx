@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Layers, Plus } from "lucide-react";
+import { Check, ChevronDown, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 import { usePrefs } from "./preferences";
 
 export type SpaceInfo = { id: string; name: string; color: string };
@@ -33,6 +33,10 @@ export function SpaceSwitcher() {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("teal");
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,6 +87,34 @@ export function SpaceSwitcher() {
     await switchTo(space.id);
   };
 
+  const saveEdit = async (id: string) => {
+    const trimmed = editName.trim();
+    if (!trimmed) return;
+    const r = await fetch("/api/spaces", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name: trimmed, color: editColor }),
+    });
+    if (!r.ok) return;
+    setSpaces((s) => s.map((x) => (x.id === id ? { ...x, name: trimmed, color: editColor } : x)));
+    setEditId(null);
+  };
+
+  const remove = async (id: string) => {
+    const r = await fetch("/api/spaces", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (!r.ok) return;
+    const next = spaces.filter((s) => s.id !== id);
+    setSpaces(next);
+    setConfirmDel(null);
+    setEditId(null);
+    if (id === activeId && next[0]) await switchTo(next[0].id);
+    else router.refresh();
+  };
+
   return (
     <div ref={ref} className="relative border-b border-line p-3">
       <button
@@ -104,17 +136,88 @@ export function SpaceSwitcher() {
             {t("space.switch")}
           </div>
           {spaces.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => switchTo(s.id)}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] transition-colors hover:bg-paper"
-            >
-              <SpaceDot color={s.color} />
-              <span className="min-w-0 flex-1 truncate">{s.name}</span>
-              {s.id === activeId && (
-                <Check className="h-3.5 w-3.5 shrink-0 text-accent-strong" />
+            <div key={s.id}>
+              {editId === s.id ? (
+                <div className="px-2 py-1.5">
+                  <input
+                    autoFocus
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveEdit(s.id);
+                      if (e.key === "Escape") setEditId(null);
+                    }}
+                    maxLength={40}
+                    className="w-full rounded-md border border-line bg-paper px-2 py-1.5 text-[12px] outline-none focus:border-accent"
+                  />
+                  <div className="mt-1.5 flex items-center justify-between">
+                    <div className="flex gap-1">
+                      {Object.keys(SPACE_COLORS).map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setEditColor(c)}
+                          aria-label={c}
+                          className={`h-3.5 w-3.5 rounded-full transition-transform ${editColor === c ? "scale-125 ring-1 ring-accent" : "opacity-60 hover:opacity-100"}`}
+                          style={{ background: SPACE_COLORS[c] }}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => saveEdit(s.id)}
+                      disabled={!editName.trim()}
+                      className="rounded-md bg-accent px-2 py-1 text-[11px] font-medium text-white disabled:opacity-40"
+                    >
+                      {t("common.save")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="group flex items-center">
+                  <button
+                    onClick={() => switchTo(s.id)}
+                    className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left text-[13px] transition-colors hover:bg-paper"
+                  >
+                    <SpaceDot color={s.color} />
+                    <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                    {s.id === activeId && (
+                      <Check className="h-3.5 w-3.5 shrink-0 text-accent-strong" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditId(s.id);
+                      setEditName(s.name);
+                      setEditColor(s.color);
+                      setConfirmDel(null);
+                    }}
+                    className="mr-1 hidden rounded p-1 text-ink-soft hover:text-ink group-hover:block"
+                    aria-label={t("space.rename")}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  {spaces.length > 1 && (
+                    <button
+                      onClick={() => setConfirmDel(confirmDel === s.id ? null : s.id)}
+                      className="mr-1.5 hidden rounded p-1 text-ink-soft hover:text-danger group-hover:block"
+                      aria-label={t("space.delete")}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               )}
-            </button>
+              {confirmDel === s.id && (
+                <div className="mx-2 mb-1.5 flex items-center justify-between gap-2 rounded-md border border-danger/40 bg-danger/10 px-2 py-1.5">
+                  <span className="text-[10.5px] text-danger">{t("space.deleteConfirm")}</span>
+                  <button
+                    onClick={() => remove(s.id)}
+                    className="shrink-0 rounded bg-danger px-2 py-0.5 text-[10.5px] font-semibold text-white"
+                  >
+                    {t("space.delete")}
+                  </button>
+                </div>
+              )}
+            </div>
           ))}
           <div className="border-t border-line/60 p-2">
             {creating ? (

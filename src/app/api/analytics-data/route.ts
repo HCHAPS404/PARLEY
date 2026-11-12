@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ensureDb, getDb } from "@/lib/db";
-import { alerts, auditLog, negotiations, ordersLocal, vendorScores } from "@/lib/db/schema";
+import { alerts, auditLog, negotiations, ordersLocal, pricePoints, vendorScores } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { getActiveSpace } from "@/lib/spaces";
 
@@ -16,7 +16,7 @@ export async function GET() {
   const db = getDb();
   const space = await getActiveSpace(user.id);
 
-  const [orders, audit, vendors, alertRows, negRows] = await Promise.all([
+  const [orders, audit, vendors, alertRows, negRows, priceRows] = await Promise.all([
     db
       .select()
       .from(ordersLocal)
@@ -47,6 +47,12 @@ export async function GET() {
         ),
       )
       .limit(500),
+    db
+      .select()
+      .from(pricePoints)
+      .where(eq(pricePoints.userId, user.id))
+      .orderBy(desc(pricePoints.createdAt))
+      .limit(2000),
   ]);
   const negs = negRows.filter((n) => n.agreedCents != null);
   const savedCents = negs.reduce(
@@ -100,6 +106,16 @@ export async function GET() {
           created_at: a.createdAt.toISOString(),
           kind: a.kind,
           status: a.status,
+        })),
+      },
+      {
+        id: "price_points",
+        data: priceRows.map((p) => ({
+          title: p.title,
+          vendor: p.vendorDomain,
+          cents: p.cents,
+          kind: p.kind,
+          created_at: p.createdAt.toISOString(),
         })),
       },
       {

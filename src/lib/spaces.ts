@@ -1,8 +1,19 @@
 import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { ensureDb, getDb } from "./db";
-import { policies, spaces } from "./db/schema";
+import {
+  alerts,
+  conversations,
+  messages,
+  negotiations,
+  ordersLocal,
+  policies,
+  priceWatches,
+  productCache,
+  reorderRules,
+  spaces,
+} from "./db/schema";
 
 export const SPACE_COOKIE = "parley_space";
 
@@ -70,6 +81,36 @@ export async function updateSpace(
     .where(and(eq(spaces.id, spaceId), eq(spaces.userId, userId)))
     .returning();
   return rows.length > 0;
+}
+
+/** Deletes a space and everything scoped to it. The user's last space can't
+ *  be deleted — the app always has somewhere to put new work. Returns
+ *  "last" when refused, false when not found, true when deleted. */
+export async function deleteSpace(
+  userId: string,
+  spaceId: string,
+): Promise<true | false | "last"> {
+  await ensureDb();
+  const db = getDb();
+  const all = await listSpaces(userId);
+  if (!all.some((s) => s.id === spaceId)) return false;
+  if (all.length <= 1) return "last";
+  // Space-scoped rows go with the space; audit_log stays — it is the record
+  // that the space and its actions once existed.
+  await db.delete(messages).where(eq(messages.spaceId, spaceId));
+  await db.delete(conversations).where(eq(conversations.spaceId, spaceId));
+  await db.delete(negotiations).where(eq(negotiations.spaceId, spaceId));
+  await db.delete(ordersLocal).where(eq(ordersLocal.spaceId, spaceId));
+  await db.delete(productCache).where(eq(productCache.userId, userId)); // cache is user-scoped, not space-scoped
+  await db.delete(priceWatches).where(eq(priceWatches.spaceId, spaceId));
+  await db.delete(alerts).where(eq(alerts.spaceId, spaceId));
+  await db.delete(reorderRules).where(eq(reorderRules.spaceId, spaceId));
+  await db.delete(policies).where(and(eq(policies.spaceId, spaceId), ne(policies.id, "default")));
+  await db.delete(spaces).where(and(eq(spaces.id, spaceId), eq(spaces.userId, userId)));
+  // If the deleted space was active, fall back to the first remaining one.
+  const jar = await cookies();
+  if (jar.get(SPACE_COOKIE)?.value === spaceId) jar.delete(SPACE_COOKIE);
+  return true;
 }
 
 /**

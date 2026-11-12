@@ -321,6 +321,19 @@ function OrderDrawer({
             )}
           </ol>
 
+          {/* Parley receipt — printable invoice of what the agent bought */}
+          <a
+            href={`/orders/${encodeURIComponent(o.id)}/receipt`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-[12px] font-medium text-ink-soft transition-colors hover:border-accent hover:text-accent-strong"
+          >
+            <span className="flex items-center gap-2">
+              <Receipt className="h-3.5 w-3.5" /> {t("pipe.d.receipt")}
+            </span>
+            <span className="text-[10px] uppercase tracking-wide">PDF</span>
+          </a>
+
           {/* Facts */}
           <dl className="space-y-2.5 border-t border-line pt-4 text-[12px]">
             <div className="flex justify-between gap-3">

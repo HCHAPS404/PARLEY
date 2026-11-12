@@ -76,9 +76,11 @@ export async function POST(req: Request) {
     openWith?: string; // buyer opens with a seller's userId
     body?: string;
     subject?: string;
+    image?: string;
   };
   const text = String(body.body ?? "").trim();
-  if (!text) return NextResponse.json({ error: "body required" }, { status: 400 });
+  const image = typeof body.image === "string" ? body.image : null;
+  if (!text && !image) return NextResponse.json({ error: "body required" }, { status: 400 });
   await ensureDb();
   const db = getDb();
   const asSeller = user.persona === "seller";
@@ -118,7 +120,8 @@ export async function POST(req: Request) {
     threadId,
     senderUserId: user.id,
     senderRole: asSeller ? "seller" : "buyer",
-    body: text,
+    body: text || "📷",
+    image,
   });
   await audit({
     actor: "user", action: "deal_message_sent", userId: user.id,
@@ -161,4 +164,38 @@ export async function PUT(req: Request) {
     .set(asSeller ? { sellerUnread: 0 } : { buyerUnread: 0 })
     .where(eq(dealThreads.id, threadId));
   return NextResponse.json({ thread: t, messages: msgs });
+}
+
+/** PATCH — pin/unpin a message in one of my threads. */
+export async function PATCH(req: Request) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { messageId, pinned } = (await req.json()) as {
+    messageId?: string;
+    pinned?: boolean;
+  };
+  if (!messageId) return NextResponse.json({ error: "messageId required" }, { status: 400 });
+  await ensureDb();
+  const db = getDb();
+  const asSeller = user.persona === "seller";
+  const [msg] = await db
+    .select({ id: dealMessages.id, threadId: dealMessages.threadId })
+    .from(dealMessages)
+    .innerJoin(
+      dealThreads,
+      and(
+        eq(dealThreads.id, dealMessages.threadId),
+        asSeller
+          ? eq(dealThreads.sellerUserId, user.id)
+          : eq(dealThreads.buyerUserId, user.id),
+      ),
+    )
+    .where(eq(dealMessages.id, messageId))
+    .limit(1);
+  if (!msg) return NextResponse.json({ error: "Message not found" }, { status: 404 });
+  await db
+    .update(dealMessages)
+    .set({ pinned: Boolean(pinned) })
+    .where(eq(dealMessages.id, msg.id));
+  return NextResponse.json({ ok: true, pinned: Boolean(pinned) });
 }

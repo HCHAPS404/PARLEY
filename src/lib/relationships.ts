@@ -105,18 +105,26 @@ export async function postMessage(input: {
   senderUserId: string;
   senderRole: "buyer" | "seller" | "system";
   body: string;
+  /** Optional photo attachment — data URL capped server-side. */
+  image?: string | null;
   /** Which side's unread counter bumps — person messages bump the counterpart,
    * system events choose explicitly. */
   unreadFor?: "buyer" | "seller" | "none";
 }) {
   const db = getDb();
   const id = `msg_${crypto.randomUUID().slice(0, 8)}`;
+  // Images must be same-origin data URLs — never remote fetches through us.
+  const image =
+    input.image && input.image.startsWith("data:image/") && input.image.length <= 400_000
+      ? input.image
+      : null;
   await db.insert(dealMessages).values({
     id,
     threadId: input.threadId,
     senderUserId: input.senderUserId,
     senderRole: input.senderRole,
     body: input.body.slice(0, 2000),
+    image,
   });
   const unreadFor =
     input.unreadFor ??

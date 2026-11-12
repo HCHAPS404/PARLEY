@@ -129,6 +129,21 @@ export const ordersLocal = pgTable("orders_local", {
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
 });
 
+/** Every price an order carried — the trace of what was actually paid for a
+ *  product over time (vs the sticker that day). Feeds the analytics trace. */
+export const pricePoints = pgTable("price_points", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  spaceId: text("space_id"),
+  vendorDomain: text("vendor_domain"), // seller domain or Parley seller name
+  sellerUserId: text("seller_user_id"), // set when the vendor is a Parley seller
+  title: text("title").notNull(),
+  cents: integer("cents").notNull(),
+  kind: text("kind").notNull(), // list|paid — sticker vs what the agent agreed
+  orderId: text("order_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** Append-only black box: every agent/system action with rationale and token cost. */
 export const auditLog = pgTable("audit_log", {
   id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
@@ -270,6 +285,8 @@ export const dealMessages = pgTable("deal_messages", {
   senderUserId: text("sender_user_id").notNull(),
   senderRole: text("sender_role").notNull(), // buyer|seller
   body: text("body").notNull(),
+  image: text("image"), // data-URL attachment — photo of the goods, receipt, damage evidence
+  pinned: boolean("pinned").notNull().default(false), // pinned by either party — lands in the thread's pinned strip
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

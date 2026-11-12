@@ -10,6 +10,7 @@ import {
   PiggyBank,
   ShieldCheck,
   Store,
+  TrendingUp,
 } from "lucide-react";
 import { DataGrid } from "./data-grid";
 import { usePrefs } from "./preferences";
@@ -66,6 +67,21 @@ export function Dashboard() {
     const vendors = get("vendor_scores");
     const audit = get("agent_activity");
     const savings = get("savings")[0] ?? {};
+    const priceRows = get("price_points");
+
+    // Price trace — group points per product title, oldest → newest.
+    const traceMap = new Map<string, { title: string; vendor: string | null; pts: { c: number; k: string; ts: number }[] }>();
+    for (const p of priceRows) {
+      const key = String(p.title);
+      const g = traceMap.get(key) ?? { title: key, vendor: (p.vendor as string | null) ?? null, pts: [] };
+      g.pts.push({ c: Number(p.cents), k: String(p.kind), ts: Date.parse(String(p.created_at)) });
+      traceMap.set(key, g);
+    }
+    const traces = [...traceMap.values()]
+      .map((g) => ({ ...g, pts: g.pts.sort((a, b) => a.ts - b.ts) }))
+      .filter((g) => g.pts.length >= 2)
+      .sort((a, b) => b.pts.length - a.pts.length)
+      .slice(0, 4);
 
     const heldCents = orders
       .filter((o) => ["authorized", "approved"].includes(String(o.status)))
@@ -109,6 +125,7 @@ export function Dashboard() {
       audit: audit.slice(0, 8),
       openAlerts,
       byStatus,
+      traces,
       kpis: {
         orders: orders.length,
         held: heldCents,
@@ -134,7 +151,7 @@ export function Dashboard() {
       </div>
     );
 
-  const { kpis, byStatus, days, maxDay, vendors, audit, openAlerts, orders } =
+  const { kpis, byStatus, days, maxDay, vendors, audit, openAlerts, orders, traces } =
     data;
   const totalOrders = Math.max(1, kpis.orders);
 
@@ -293,6 +310,67 @@ export function Dashboard() {
             </div>
           </section>
         </div>
+
+        {/* Price trace — what we actually paid per product over time */}
+        {traces.length > 0 && (
+          <section className="rounded-xl border border-line bg-card p-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-ink-soft" />
+              <h2 className="text-[13px] font-semibold">{t("dash.trace.title")}</h2>
+            </div>
+            <p className="text-[11px] text-ink-soft">{t("dash.trace.sub")}</p>
+            <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+              {traces.map((g) => {
+                const paid = g.pts.filter((p) => p.k === "paid");
+                const list = g.pts.filter((p) => p.k === "list");
+                const last = paid.at(-1)?.c ?? g.pts.at(-1)!.c;
+                const first = paid[0]?.c ?? g.pts[0].c;
+                const delta = last - first;
+                const lo = Math.min(...g.pts.map((p) => p.c));
+                const hi = Math.max(...g.pts.map((p) => p.c));
+                const span = Math.max(1, hi - lo);
+                const W = 100, H = 34;
+                const xy = g.pts.map((p, i) => {
+                  const x = (i / Math.max(1, g.pts.length - 1)) * W;
+                  const y = H - 3 - ((p.c - lo) / span) * (H - 8);
+                  return `${x.toFixed(1)},${y.toFixed(1)}`;
+                });
+                return (
+                  <div key={g.title} className="rounded-lg border border-line/60 bg-paper px-3 py-2.5">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 truncate text-[12px] font-medium">{g.title}</span>
+                      <span className="shrink-0 text-[11px] text-ink-soft">{g.vendor}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-end justify-between gap-3">
+                      <svg viewBox={`0 0 ${W} ${H}`} className="h-9 min-w-0 flex-1" preserveAspectRatio="none">
+                        {list.length > 0 && (
+                          <polyline
+                            points={g.pts.map((p, i) => p.k === "list" ? xy[i] : null).filter(Boolean).join(" ")}
+                            fill="none" strokeWidth="1" strokeDasharray="3 2"
+                            className="stroke-ink-soft/50"
+                          />
+                        )}
+                        <polyline points={xy.join(" ")} fill="none" strokeWidth="1.5" className="stroke-accent" />
+                        {g.pts.map((p, i) => (
+                          <circle key={i} cx={xy[i].split(",")[0]} cy={xy[i].split(",")[1]} r="1.6"
+                            className={p.k === "paid" ? "fill-accent-strong" : "fill-ink-soft/60"} />
+                        ))}
+                      </svg>
+                      <div className="shrink-0 text-right">
+                        <div className="font-display text-[15px] font-semibold">{usd(last / 100)}</div>
+                        {paid.length > 0 && delta !== 0 && (
+                          <div className={`text-[10.5px] font-medium ${delta < 0 ? "text-ok" : "text-warn"}`}>
+                            {delta < 0 ? "▼" : "▲"} {usd(Math.abs(delta) / 100)} {t("dash.trace.trend")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Activity feed */}
         <section className="rounded-xl border border-line bg-card p-4">

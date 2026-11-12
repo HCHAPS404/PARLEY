@@ -15,6 +15,8 @@ import {
   PackageSearch,
   Paperclip,
   Plus,
+  Scale,
+  Store,
   TrendingDown,
   TrendingUp,
   ShieldCheck,
@@ -28,6 +30,12 @@ import { usePrefs } from "./preferences";
 
 const transport = new DefaultChatTransport({ api: "/api/chat" });
 
+interface OfferInfo {
+  domain: string;
+  priceCents: number;
+  currency: string;
+  url: string;
+}
 interface ProductCard {
   id: string;
   title: string;
@@ -38,6 +46,9 @@ interface ProductCard {
   merchant?: string;
   buyUrl?: string;
   offersCount: number;
+  offers?: OfferInfo[];
+  description?: string;
+  promo?: string;
   vendorScore?: number | null;
 }
 
@@ -629,7 +640,120 @@ function ProductImage({ src, alt }: { src?: string; alt: string }) {
   );
 }
 
+interface ParleySellerHit {
+  id: string;
+  title: string;
+  image: string | null;
+  stock: number;
+  priceCents: number;
+  promo: string | null;
+  sellerName: string;
+  storefront: string;
+}
+
+/** Side-by-side market view for one product: every web offer the search
+ *  surfaced vs Parley sellers whose agents will negotiate it. */
+function ComparePanel({ product, onClose }: { product: ProductCard; onClose: () => void }) {
+  const [sellers, setSellers] = useState<ParleySellerHit[] | null>(null);
+  useEffect(() => {
+    fetch(`/api/products/compare?title=${encodeURIComponent(product.title)}`)
+      .then((r) => (r.ok ? r.json() : { sellers: [] }))
+      .then((d) => setSellers(d.sellers ?? []))
+      .catch(() => setSellers([]));
+  }, [product.title]);
+  const offers = [...(product.offers ?? [])].sort((a, b) => a.priceCents - b.priceCents);
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-ink/30 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl border border-line bg-card shadow-2xl">
+          <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+            <div className="min-w-0">
+              <h2 className="font-display text-[15px] font-semibold leading-snug">{product.title}</h2>
+              <p className="mt-0.5 text-[11px] text-ink-soft">Compare where to buy — web offers vs Parley sellers</p>
+            </div>
+            <button onClick={onClose} className="rounded-md p-1.5 text-ink-soft hover:bg-paper hover:text-ink" aria-label="Close">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="space-y-5 p-5">
+            {/* Web offers */}
+            <div>
+              <div className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-soft">
+                On the web — {offers.length} listing{offers.length === 1 ? "" : "s"}
+              </div>
+              <ul className="mt-2 divide-y divide-line/60 rounded-lg border border-line/60">
+                {offers.length === 0 && (
+                  <li className="px-3 py-2.5 text-[12px] text-ink-soft">Only one listing found for this item.</li>
+                )}
+                {offers.map((o, i) => (
+                  <li key={i} className="flex items-center gap-2.5 px-3 py-2.5">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${i === 0 ? "bg-ok" : "bg-ink-soft/40"}`} />
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{o.domain}</span>
+                    {i === 0 && <span className="rounded-full bg-ok-soft px-1.5 py-0.5 text-[9.5px] font-semibold text-ok">best</span>}
+                    <span className="shrink-0 text-[13px] font-semibold">{usd(o.priceCents, o.currency)}</span>
+                    {o.url && (
+                      <a href={o.url} target="_blank" rel="noopener noreferrer"
+                        className="shrink-0 rounded p-1 text-ink-soft hover:text-accent-strong" aria-label={`Open ${o.domain}`}>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Parley sellers */}
+            <div>
+              <div className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-soft">
+                On Parley — agents negotiate these prices
+              </div>
+              <ul className="mt-2 space-y-2">
+                {sellers === null ? (
+                  <li className="px-1 py-2 text-[12px] text-ink-soft">Looking up Parley sellers…</li>
+                ) : sellers.length === 0 ? (
+                  <li className="px-1 py-2 text-[12px] text-ink-soft">No Parley seller carries this yet — web offers above are your options.</li>
+                ) : (
+                  sellers.map((s) => (
+                    <li key={s.id} className="flex items-center gap-3 rounded-lg border border-accent/25 bg-accent-soft/30 px-3 py-2.5">
+                      {s.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.image} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" />
+                      ) : (
+                        <Store className="h-9 w-9 shrink-0 rounded-md bg-paper p-2 text-ink-soft" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[12.5px] font-medium">{s.title}</div>
+                        <div className="truncate text-[10.5px] text-ink-soft">
+                          {s.sellerName} · {s.stock} in stock · negotiable by agent
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-[13px] font-semibold text-accent-strong">{usd(s.priceCents)}</div>
+                        {s.promo && <div className="text-[9.5px] font-semibold text-accent-strong">{s.promo}</div>}
+                      </div>
+                      <a href={s.storefront} target="_blank" rel="noopener noreferrer"
+                        className="shrink-0 rounded p-1 text-ink-soft hover:text-accent-strong" aria-label={`Open ${s.sellerName}`}>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+            {product.description && (
+              <p className="rounded-lg bg-paper px-3 py-2.5 text-[11.5px] leading-relaxed text-ink-soft">
+                {product.description}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function ProductGrid({ products }: { products: ProductCard[] }) {
+  const [compare, setCompare] = useState<ProductCard | null>(null);
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {products.slice(0, 6).map((p) => (
@@ -654,6 +778,14 @@ function ProductGrid({ products }: { products: ProductCard[] }) {
             <div className="line-clamp-2 min-h-[2.1rem] text-[13px] font-medium leading-snug">
               {p.title}
             </div>
+            {p.description && (
+              <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-ink-soft">{p.description}</p>
+            )}
+            {p.promo && (
+              <span className="mt-1.5 inline-flex w-fit rounded-full bg-accent-mist px-2 py-0.5 text-[10px] font-semibold text-accent-strong">
+                {p.promo}
+              </span>
+            )}
             <div className="mt-auto flex items-end justify-between gap-2 pt-2">
               <div className="min-w-0">
                 <div className="font-display text-[15px] font-semibold text-ink">
@@ -684,9 +816,20 @@ function ProductGrid({ products }: { products: ProductCard[] }) {
                 </span>
               )}
             </div>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCompare(p);
+              }}
+              className="mt-2 flex items-center justify-center gap-1.5 rounded-md border border-line py-1.5 text-[11px] font-medium text-ink-soft transition-colors hover:border-accent hover:text-accent-strong"
+            >
+              <Scale className="h-3 w-3" /> Compare sellers
+            </button>
           </div>
         </a>
       ))}
+      {compare && <ComparePanel product={compare} onClose={() => setCompare(null)} />}
     </div>
   );
 }
